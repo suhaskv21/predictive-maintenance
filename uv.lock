@@ -1397,6 +1397,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "altair" },
     { name = "marimo" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1414,6 +1415,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "altair", specifier = ">=6.3.0" },
     { name = "marimo", specifier = ">=0.25.1" },
     { name = "mypy", specifier = ">=2.4.0" },
     { name = "pytest", specifier = ">=9.1.1" },

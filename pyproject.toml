@@ -20,6 +20,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "altair>=6.3.0",
     "marimo>=0.25.1",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
@@ -50,3 +51,7 @@ ignore = ["D104"]
 python_version = "3.12"
 strict = true
 files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true

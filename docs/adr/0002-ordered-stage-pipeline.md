@@ -10,10 +10,9 @@ allowing each step to focus on its own work. A workflow implemented as one large
 procedure couples orchestration to domain logic, while independently coordinated
 steps make ordering and shared execution behavior harder to understand.
 
-IDC's filter pipeline demonstrates this decision: processing units implement a
+The following filter pipeline demonstrates this decision: processing units implement a
 common `Filter.run(data) -> data` protocol, and `Pipeline` invokes them in a
-configured sequence. The current implementation uses lazy Polars frames and
-supports distinct pre-batch and per-session stages; those are application-specific
+configured sequence. The current implementation uses Polars lazy frames; those are application-specific
 choices rather than requirements of the architectural principle.
 
 Spec reference: §4.2 requires a reproducible, modular preprocessing, training, and
@@ -38,7 +37,7 @@ and applicable cross-cutting execution policies.
 The contract should express the data or artifacts exchanged by the workflow. It
 may be a dataframe, a model artifact, a structured context, or another suitable
 type. Keep it as narrow as practical, and do not require all workflows to use
-IDC's lazy-frame contract. Batching, branching, retries, persistence, and other
+ lazy-frame contract. Batching, branching, retries, persistence, and other
 execution policies are added only when required by the workflow.
 
 ## Consequences
