@@ -1,0 +1,52 @@
+[project]
+name = "predictive-maintenance"
+version = "0.1.0"
+description = "Predictive maintenance ML system: machine failure risk from sensor readings (AI4I 2020)."
+readme = "README.md"
+authors = [
+    { name = "Suhas", email = "Suhas.Kashetty.Venkateshkumar@aumovio.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "joblib>=1.6.0",
+    "polars>=2.0.0",
+    "scikit-learn>=1.9.1",
+    "streamlit>=1.65.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "marimo>=0.25.1",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --import-mode=importlib"
+
+[tool.coverage.run]
+source = ["src/predictive_maintenance"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "N", "D1"]
+ignore = ["D104"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
