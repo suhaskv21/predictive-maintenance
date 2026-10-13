@@ -1,8 +1,8 @@
 # 0011. XGBoost figures under the matched library pins
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-13
-- Deciders: Suhas (agreed in a grill session 2026-10-13); drafted by an agent
+- Deciders: Suhas (agreed in a grill session 2026-10-13; accepted 2026-10-13); drafted by an agent
 - Refines: [0007](0007-metric-and-threshold.md), **XGBoost figures only**. Nothing else in ADR 0007,
   and nothing in 0004 to 0006 or 0008, is changed. ADR 0007's text and status are left as they are;
   on acceptance the human decides whether to annotate it.
