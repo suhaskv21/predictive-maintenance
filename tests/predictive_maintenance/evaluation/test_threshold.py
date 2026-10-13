@@ -28,7 +28,9 @@ from predictive_maintenance.evaluation.threshold import (
     is_flat_optimum,
     is_viable,
     mean_cost,
+    median_threshold,
     operating_metrics,
+    per_repeat_thresholds,
     pick_threshold,
     ranking_metrics,
     repeat_scores,
@@ -122,6 +124,19 @@ def test_a_higher_cost_ratio_never_raises_the_threshold() -> None:
     y, scores = noisy_scores()
     t5, t10, t20 = (pick_threshold(y, scores, r) for r in (5, 10, 20))
     assert t20 <= t10 <= t5
+
+
+def test_median_threshold_is_the_median_of_the_per_repeat_thresholds() -> None:
+    y, a = noisy_scores()
+    _, b = noisy_scores(seed=2)
+    rows = np.vstack([a, b, a])
+    picks = per_repeat_thresholds(y, rows, 10)
+    assert picks == tuple(pick_threshold(y, row, 10) for row in rows)
+    assert median_threshold(y, rows, 10) == float(np.median(picks))
+    assert (
+        median_threshold(y, rows, 10)
+        == estimate_threshold(y, rows, 10, n_resamples=2, seed=0).median
+    )
 
 
 def test_estimate_threshold_reports_median_repeat_range_and_bootstrap_interval() -> None:

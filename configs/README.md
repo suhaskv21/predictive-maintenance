@@ -43,8 +43,16 @@ added when the ADRs that decide them are accepted.
   - `min_pr_auc`: smallest mean repeated-CV PR-AUC for a mode to count as predictable.
   - `min_lift`: smallest ratio of that PR-AUC to the mode's prevalence. The PR-AUC must also exceed
     the prevalence by more than one corrected standard error.
-- `[app]` (ADR 0009, Proposed): `example_count` = how many Example readings the app offers, all
-  drawn from the train partition (never the holdout).
+- `[app]` (ADR 0009): `example_count` = how many Example readings the app offers, all
+  drawn from the train partition (never the holdout); `example_failures` = how many of those are
+  recorded failures (the rest are non-failures).
+- `[deploy]` (ADR 0010, ADR 0012): checks the training command and the build enforce.
+  - `accepted_thresholds`: the Operating threshold accepted in ADR 0007 at the default cost ratio,
+    per model name (forest 0.218). Training re-derives it and fails if it differs by more than
+    `threshold_tolerance`, so a silent drift in the model or library versions fails loudly.
+  - `threshold_tolerance`: largest allowed difference, compared after rounding the re-derived
+    threshold to 3 places (the precision the ADR quotes).
+  - `site_budget_mb`: largest exported site, in MB, the build accepts.
 
 ## What a cost ratio means
 

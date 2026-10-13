@@ -6,6 +6,7 @@ from predictive_maintenance.config import (
     DEFAULT_CONFIG_PATH,
     AppConfig,
     Config,
+    DeployConfig,
     EvaluationConfig,
     FailureModesConfig,
     MissingDataConfig,
@@ -55,6 +56,12 @@ min_lift = 3
 
 [app]
 example_count = 6
+example_failures = 2
+
+[deploy]
+accepted_thresholds = { forest = 0.25 }
+threshold_tolerance = 0.001
+site_budget_mb = 50
 """
 
 
@@ -101,14 +108,53 @@ def test_load_config_reads_seed_and_split_from_the_given_file(tmp_path: Path) ->
             informative_failure_rate_ratio=3.0,
         ),
         failure_modes=FailureModesConfig(min_pr_auc=0.4, min_lift=3.0),
-        app=AppConfig(example_count=6),
+        app=AppConfig(example_count=6, example_failures=2),
+        deploy=DeployConfig(
+            accepted_thresholds={"forest": 0.25}, threshold_tolerance=0.001, site_budget_mb=50.0
+        ),
     )
 
 
-def test_default_config_holds_the_failure_mode_rule_and_app_settings_proposed_in_adr_0009() -> None:
+def test_default_config_holds_the_failure_mode_rule_and_app_settings_from_adr_0009() -> None:
     config = load_config()
     assert config.failure_modes == FailureModesConfig(min_pr_auc=0.30, min_lift=5.0)
-    assert config.app == AppConfig(example_count=10)
+    assert config.app == AppConfig(example_count=10, example_failures=3)
+
+
+def test_default_config_holds_the_deploy_checks_approved_for_the_submission() -> None:
+    assert load_config().deploy == DeployConfig(
+        accepted_thresholds={"random_forest_unweighted": 0.218},
+        threshold_tolerance=0.0005,
+        site_budget_mb=100.0,
+    )
+
+
+@pytest.mark.parametrize(
+    ("bad_line", "name"),
+    [
+        ("example_failures = -1", "example_failures"),
+        ("example_failures = 7", "example_failures"),
+        ("example_failures = 1.5", "example_failures"),
+        ("accepted_thresholds = {}", "accepted_thresholds"),
+        ("accepted_thresholds = { forest = 1.5 }", "accepted_thresholds"),
+        ('accepted_thresholds = { forest = "0.2" }', "accepted_thresholds"),
+        ("threshold_tolerance = 0", "threshold_tolerance"),
+        ("threshold_tolerance = true", "threshold_tolerance"),
+        ("site_budget_mb = -5", "site_budget_mb"),
+    ],
+)
+def test_load_config_rejects_invalid_app_failures_and_deploy_settings(
+    tmp_path: Path, bad_line: str, name: str
+) -> None:
+    lines = [bad_line if line.startswith(name) else line for line in VALID.splitlines()]
+    with pytest.raises(ValueError, match=name):
+        load_config(write(tmp_path, "\n".join(lines)))
+
+
+def test_load_config_rejects_a_file_without_a_deploy_table(tmp_path: Path) -> None:
+    text = VALID.split("[deploy]")[0]
+    with pytest.raises(ValueError, match=r"\[deploy\]"):
+        load_config(write(tmp_path, text))
 
 
 @pytest.mark.parametrize(

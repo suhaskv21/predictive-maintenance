@@ -65,7 +65,17 @@ informative_failure_rate_ratio = 2.0
 min_pr_auc = 0.30
 min_lift = 5
 
-# App settings (ADR 0009, Proposed). example_count: Example readings offered, all from the train
-# partition (never the holdout).
+# App settings (ADR 0009). example_count: Example readings offered, all from the train
+# partition (never the holdout). example_failures: how many of them are recorded failures.
 [app]
 example_count = 10
+example_failures = 3
+
+# Deployment checks (ADR 0010, ADR 0012). accepted_thresholds: the Operating threshold accepted in
+# ADR 0007 at the default cost ratio, per model; training fails if its re-derived figure (rounded to
+# 3 places, as the ADR quotes it) differs by more than threshold_tolerance. site_budget_mb: largest
+# exported site the build accepts.
+[deploy]
+accepted_thresholds = { random_forest_unweighted = 0.218 }
+threshold_tolerance = 0.0005
+site_budget_mb = 100

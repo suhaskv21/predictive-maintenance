@@ -161,6 +161,21 @@ def pick_threshold(
     return (low + high) / 2
 
 
+def per_repeat_thresholds(
+    y: Sequence[int] | NDArray[Any], repeat_scores: FloatArray, cost_ratio: float
+) -> tuple[float, ...]:
+    """The cost-minimising threshold at ``cost_ratio`` picked on each CV repeat's scores."""
+    labels = _binary(y)
+    return tuple(pick_threshold(labels, row, cost_ratio) for row in repeat_scores)
+
+
+def median_threshold(
+    y: Sequence[int] | NDArray[Any], repeat_scores: FloatArray, cost_ratio: float
+) -> float:
+    """The Operating threshold at ``cost_ratio``: the median of the per-repeat picks (ADR 0007)."""
+    return float(np.median(per_repeat_thresholds(y, repeat_scores, cost_ratio)))
+
+
 def mean_cost(
     y: Sequence[int] | NDArray[Any], repeat_scores: FloatArray, threshold: float, cost_ratio: float
 ) -> float:
@@ -198,7 +213,7 @@ def estimate_threshold(
     kept) and picks the threshold on one repeat's scores, cycling through the repeats.
     """
     labels = _binary(y)
-    per_repeat = tuple(pick_threshold(labels, row, cost_ratio) for row in repeat_scores)
+    per_repeat = per_repeat_thresholds(labels, repeat_scores, cost_ratio)
     rng = np.random.default_rng(seed)
     positives, negatives = np.flatnonzero(labels), np.flatnonzero(~labels)
     boot = np.empty(n_resamples)

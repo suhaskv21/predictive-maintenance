@@ -1,6 +1,7 @@
 """Run configuration from ``configs/default.toml``: the single source of seed and run settings."""
 
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -101,9 +102,29 @@ class FailureModesConfig:
 
 @dataclass(frozen=True)
 class AppConfig:
-    """App settings (ADR 0009): ``example_count`` is how many Example readings are offered."""
+    """App settings (ADR 0009).
+
+    ``example_count`` is how many Example readings are offered, of which ``example_failures`` are
+    recorded failures.
+    """
 
     example_count: int
+    example_failures: int
+
+
+@dataclass(frozen=True)
+class DeployConfig:
+    """Deployment checks (ADR 0010, ADR 0012).
+
+    ``accepted_thresholds`` maps a model name to its Operating threshold accepted in ADR 0007 at
+    the default cost ratio; training fails if its re-derived threshold, rounded to 3 places,
+    differs by more than ``threshold_tolerance``. ``site_budget_mb`` is the largest exported site
+    the build accepts.
+    """
+
+    accepted_thresholds: Mapping[str, float]
+    threshold_tolerance: float
+    site_budget_mb: float
 
 
 @dataclass(frozen=True)
@@ -118,6 +139,13 @@ class Config:
     pipeline_health: PipelineHealthConfig
     failure_modes: FailureModesConfig
     app: AppConfig
+    deploy: DeployConfig
+
+
+def _positive(value: object, name: str, where: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+        raise ValueError(f"{where}: {name!r} must be a positive number, got {value!r}")
+    return float(value)
 
 
 def _integer(table: dict[str, object], name: str, where: str, minimum: int | None = None) -> int:
@@ -138,16 +166,11 @@ def _threshold(raw: dict[str, object], path: Path) -> ThresholdConfig:
         raise ValueError(f"{path}: a [threshold] table is required")
     where = f"{path} [threshold]"
 
-    def positive(value: object, name: str) -> float:
-        if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
-            raise ValueError(f"{where}: {name!r} must be a positive number, got {value!r}")
-        return float(value)
-
-    default = positive(table.get("default_cost_ratio"), "default_cost_ratio")
+    default = _positive(table.get("default_cost_ratio"), "default_cost_ratio", where)
     listed = table.get("cost_ratios")
     if not isinstance(listed, list) or not listed:
         raise ValueError(f"{where}: 'cost_ratios' must be a non-empty list, got {listed!r}")
-    ratios = tuple(positive(value, "cost_ratios") for value in listed)
+    ratios = tuple(_positive(value, "cost_ratios", where) for value in listed)
     if list(ratios) != sorted(set(ratios)):
         raise ValueError(f"{where}: 'cost_ratios' must be ascending and distinct, got {listed!r}")
     if default not in ratios:
@@ -262,7 +285,42 @@ def _app(raw: dict[str, object], path: Path) -> AppConfig:
     table = raw.get("app")
     if not isinstance(table, dict):
         raise ValueError(f"{path}: an [app] table is required")
-    return AppConfig(example_count=_integer(table, "example_count", f"{path} [app]", minimum=1))
+    where = f"{path} [app]"
+    count = _integer(table, "example_count", where, minimum=1)
+    failures = _integer(table, "example_failures", where, minimum=0)
+    if failures > count:
+        raise ValueError(
+            f"{where}: 'example_failures' must not exceed 'example_count' ({count}), got {failures}"
+        )
+    return AppConfig(example_count=count, example_failures=failures)
+
+
+def _deploy(raw: dict[str, object], path: Path) -> DeployConfig:
+    table = raw.get("deploy")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: a [deploy] table is required")
+    where = f"{path} [deploy]"
+
+    accepted = table.get("accepted_thresholds")
+    if not isinstance(accepted, dict) or not accepted:
+        raise ValueError(
+            f"{where}: 'accepted_thresholds' must be a non-empty table of model = threshold, "
+            f"got {accepted!r}"
+        )
+    thresholds: dict[str, float] = {}
+    for model, value in accepted.items():
+        if isinstance(value, bool) or not isinstance(value, int | float) or not 0 < value < 1:
+            raise ValueError(
+                f"{where}: 'accepted_thresholds' {model!r} must be in (0, 1), got {value!r}"
+            )
+        thresholds[model] = float(value)
+    return DeployConfig(
+        accepted_thresholds=thresholds,
+        threshold_tolerance=_positive(
+            table.get("threshold_tolerance"), "threshold_tolerance", where
+        ),
+        site_budget_mb=_positive(table.get("site_budget_mb"), "site_budget_mb", where),
+    )
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -270,8 +328,8 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
 
     Raises:
         ValueError: if ``seed`` or the ``[split]``, ``[threshold]``, ``[evaluation]``,
-            ``[missing_data]``, ``[pipeline_health]``, ``[failure_modes]`` or ``[app]`` tables and
-            their settings are absent or invalid.
+            ``[missing_data]``, ``[pipeline_health]``, ``[failure_modes]``, ``[app]`` or
+            ``[deploy]`` tables and their settings are absent or invalid.
     """
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
@@ -299,4 +357,5 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
         pipeline_health=_pipeline_health(raw, path),
         failure_modes=_failure_modes(raw, path),
         app=_app(raw, path),
+        deploy=_deploy(raw, path),
     )

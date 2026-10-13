@@ -21,5 +21,8 @@ check: lint typecheck test
 app:
     uv run streamlit run streamlit_app.py
 
+train:
+    uv run python -m predictive_maintenance.training.train
+
 notebook:
     uv run marimo edit notebooks
