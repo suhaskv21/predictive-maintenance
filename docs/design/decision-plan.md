@@ -24,8 +24,8 @@ Each decision below becomes a `Proposed` ADR backed by a notebook; a human moves
 | Feature rule | Keep an engineered feature if it improves repeated-CV PR-AUC (mean paired delta > 0 on identical folds) for the non-linear model; the linear model is not required to improve. Also keep it if needed for interpretability. Amended 2026-10-12 after notebook 01 results, which showed the original "both models" rule rejects linear combinations of inputs by construction; the original rule required a gain for both linear and non-linear models. |
 | Missing data | Train on complete data; inject nulls into validation folds only. Scenarios: MCAR in 1 sensor, MCAR in 2 sensors, MAR (torque missing at high speed), full sensor outage, `Type` missing. Strategies: reject, median/mode imputation, imputation + missing-indicators, native NaN handling (HistGradientBoosting only). Rule: adopt a strategy only if CV PR-AUC drops < 10% relative with 1 sensor missing; otherwise the app refuses to score. The ADR must say how the app signals reduced reliability. |
 | App output | Three bands (Low / Elevated / High) plus the estimated probability and a caveat. Band edges from the cost analysis. Wording: "estimated risk based on historical readings", never "will fail". Calibrate only if notebook 03 shows it is needed. |
-| Dependencies | Declare `altair` in the dev group (already installed transitively via marimo). No other additions. |
-| Code boundary | Minimal tested enabling layer in the package (CSV load and validation, `configs/default.toml`, stratified split, candidate feature transformer), with mirrored tests, per ADR 0002 scope. Experiment-only code stays in the notebooks: model comparison loops, missing-data injection harness, plots. Losing candidates stay notebook-only. |
+| Dependencies | `altair` in the dev group (already installed transitively via marimo). Amended 2026-10-13 by Suhas: `xgboost` and `lightgbm` are runtime dependencies, because ADR 0006 keeps the boosters as switchable models for the app. |
+| Code boundary | Minimal tested enabling layer in the package (CSV load and validation, `configs/default.toml`, stratified split, candidate feature transformer), with mirrored tests, per ADR 0002 scope. Amended 2026-10-13 by Suhas: the model-comparison logic and candidate definitions also live in the package (`evaluation/compare.py`, `training/candidates.py`) with mirrored tests, and the notebook only imports. Plots, the missing-data injection harness and narrative stay in the notebooks. |
 
 ## Notebooks, in order (each gated on the previous ADR being Accepted)
 
@@ -33,7 +33,8 @@ Each decision below becomes a `Proposed` ADR backed by a notebook; a human moves
 |---|---|
 | `notebooks/01_target_and_features.py` | 0004 target, features, exclusions, engineered features. Includes leakage evidence: mode flags alone vs `Machine failure`, `Product ID` as predictor. |
 | `notebooks/02_split_strategy.py` | 0005 split and validation |
-| `notebooks/03_model_family.py` | 0006 model family; 0007 metric and threshold. Also a per-mode predictability check (repeated-CV PR-AUC per Failure mode from the sensors, against each mode's prevalence); its result feeds ADR 0009 (whether mode prediction becomes a secondary output). |
+| `notebooks/03_model_comparison.py` | 0006 model family (comparison logic in `evaluation/compare.py`, candidates in `training/candidates.py`, notebook only imports). Per-mode predictability check (see 0004 open items) is deferred to ADR 0009. |
+| `notebooks/03b_threshold.py` (name provisional) | 0007 metric and threshold, separate from 0006 |
 | `notebooks/04_missing_data.py` | 0008 missing-data policy (runs on the models shortlisted in 03) |
 
 ADR numbering (renumbers the pending list in 0001, per the follow-up in 0002):

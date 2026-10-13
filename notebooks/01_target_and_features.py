@@ -244,12 +244,16 @@ def _(
         pl.col("UDI"),
         pl.col("Product ID").str.slice(1).cast(pl.Int64).alias("Product ID number"),
         # Control: a seeded random column shows what "no signal" scores under this protocol.
-        pl.Series("Random noise (control)", np.random.default_rng(seed).uniform(size=train_df.height)),
+        pl.Series(
+            "Random noise (control)", np.random.default_rng(seed).uniform(size=train_df.height)
+        ),
     )
     id_results = {}
     for id_name in id_predictors.columns:
         _scores = cv_scores(
-            HistGradientBoostingClassifier(random_state=seed), id_predictors.select(id_name), y_train
+            HistGradientBoostingClassifier(random_state=seed),
+            id_predictors.select(id_name),
+            y_train,
         )
         id_results[id_name] = (float(_scores.mean()), float(_scores.std()))
 
@@ -365,9 +369,7 @@ def _(alt, mo, pl, schema, train_df):
             ),
             color=alt.Color(
                 "Machine failure:N",
-                scale=alt.Scale(
-                    domain=[0, 1], range=["#c8c8c8", "#d62728"]
-                ),
+                scale=alt.Scale(domain=[0, 1], range=["#c8c8c8", "#d62728"]),
             ),
             order=alt.Order("Machine failure:Q"),
             opacity=alt.condition(
@@ -376,9 +378,7 @@ def _(alt, mo, pl, schema, train_df):
                 alt.value(0.35),
             ),
         )
-        .properties(
-            title="Torque vs rotational speed", width=380, height=260
-        )
+        .properties(title="Torque vs rotational speed", width=380, height=260)
     )
     mo.ui.altair_chart(type_chart | scatter)
     return
@@ -470,9 +470,7 @@ def _(ENGINEERED_FEATURES, nonlinear_model, summary):
         )["delta"].item()
 
     keep_set = tuple(
-        name
-        for name in ENGINEERED_FEATURES
-        if delta_of(nonlinear_model, f"+ {name}") > 0
+        name for name in ENGINEERED_FEATURES if delta_of(nonlinear_model, f"+ {name}") > 0
     )
     return delta_of, keep_set
 
@@ -498,16 +496,13 @@ def _(markdown_table, mo, pl, summary):
 
 @app.cell
 def _(markdown_table, mo, pl, summary):
-    per_feature = (
-        summary.filter(pl.col("feature_set") != "raw")
-        .select(
-            "model",
-            "feature_set",
-            pr_auc=pl.col("pr_auc").round(3),
-            delta=pl.col("delta").round(4),
-            delta_se=pl.col("delta_se").round(4),
-            within_1_se=pl.col("delta").abs() < pl.col("delta_se"),
-        )
+    per_feature = summary.filter(pl.col("feature_set") != "raw").select(
+        "model",
+        "feature_set",
+        pr_auc=pl.col("pr_auc").round(3),
+        delta=pl.col("delta").round(4),
+        delta_se=pl.col("delta_se").round(4),
+        within_1_se=pl.col("delta").abs() < pl.col("delta_se"),
     )
     mo.md(f"""
     ### 4b · Paired gain over raw, one engineered feature at a time
@@ -617,12 +612,14 @@ def _(
     ).sort("model", "feature_set", descending=[False, True])
 
     linear_flat = [
-        f"{name} ({', '.join(f'{m} {delta_of(m, f'+ {name}'):+.4f}' for m in models if m != nonlinear_model)})"
+        f"{name} ({', '.join(f'{m} {delta_of(m, f"+ {name}"):+.4f}' for m in models if m != nonlinear_model)})"
         for name in keep_set
         if any(delta_of(m, f"+ {name}") <= 0 for m in models if m != nonlinear_model)
     ]
     linear_flat_text = (
-        "; ".join(linear_flat) if linear_flat else "none: every kept feature also helps the linear model"
+        "; ".join(linear_flat)
+        if linear_flat
+        else "none: every kept feature also helps the linear model"
     )
     weak = [
         f"{row['model']} / {row['feature_set']}"

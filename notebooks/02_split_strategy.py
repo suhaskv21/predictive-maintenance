@@ -478,7 +478,8 @@ def _(
         preds = predict_candidates(inner_train["position"].to_numpy(), val_idx)
         scores = [prauc(y_dev[val_idx], p) for p in preds]
         thresholds = {
-            r: pick_threshold(cost_curve(y_dev[val_idx], preds[PROBE_INDEX], r)) for r in COST_RATIOS
+            r: pick_threshold(cost_curve(y_dev[val_idx], preds[PROBE_INDEX], r))
+            for r in COST_RATIOS
         }
         return "single 80/20", s, scores, thresholds, time.perf_counter() - started
 
@@ -496,7 +497,9 @@ def _(
         scores = np.mean(fold_scores, axis=0).tolist()
         thresholds = {
             r: pick_threshold(
-                np.mean([cost_curve(y_dev, oof[i][PROBE_INDEX], r) for i in range(n_repeats)], axis=0)
+                np.mean(
+                    [cost_curve(y_dev, oof[i][PROBE_INDEX], r) for i in range(n_repeats)], axis=0
+                )
             )
             for r in COST_RATIOS
         }
@@ -795,7 +798,8 @@ def _(BOOSTED, LOGISTIC, pl, ratio_runs, ratio_splits):
     seventy_wins = bool(narrower_70 and penalty_ok_70 and selection_ok_70)
     ninety_wins = bool(
         all(
-            checks["90/10"][p]["width_change"] <= 0.15 and checks["90/10"][p]["pr_auc_change"] >= 0.01
+            checks["90/10"][p]["width_change"] <= 0.15
+            and checks["90/10"][p]["pr_auc_change"] >= 0.01
             for p in checks["90/10"]
         )
     )
@@ -899,8 +903,7 @@ def _(
         [
             (
                 "Holdout: stratified vs plain",
-                "Stratified: test positives fixed; PR-AUC spread SD ratio "
-                f"{sd_ratio:.2f} vs plain",
+                f"Stratified: test positives fixed; PR-AUC spread SD ratio {sd_ratio:.2f} vs plain",
                 "Plain: no stratification code; varying positives",
                 "stratified" if stratified_wins else "plain",
             ),
@@ -935,12 +938,16 @@ def _(
 
     ### Recommended for ADR 0005 (follows the rules above)
 
-    **{summary_text}.** The default (stratified 80/20 + repeated 5×5 CV) is {"confirmed" if (
-        stratified_wins and repeated_cv_wins and chosen_ratio == "80/20"
-    ) else "overturned in at least one part"} by the evidence.
+    **{summary_text}.** The default (stratified 80/20 + repeated 5×5 CV) is {
+        "confirmed"
+        if (stratified_wins and repeated_cv_wins and chosen_ratio == "80/20")
+        else "overturned in at least one part"
+    } by the evidence.
 
-    - Test positives at 80/20: **{row80["test_positives"]:.0f}** of {row80["test_positives"] + row80["train_positives"]:.0f}
-      failures, so every test metric needs a confidence interval (width ≈ {row80["ci_width"]:.2f} PR-AUC
+    - Test positives at 80/20: **{row80["test_positives"]:.0f}** of {
+        row80["test_positives"] + row80["train_positives"]:.0f}
+      failures, so every test metric needs a confidence interval (width ≈ {
+        row80["ci_width"]:.2f} PR-AUC
       for the logistic probe).
     - The holdout is stratified, split before fitting anything, and scored **once**, at the end.
     - Model comparison and threshold selection use the train partition only.
@@ -1031,9 +1038,7 @@ def _(
         )
         pipeline = make_pipeline(build_feature_transformer(recheck_sets[set_name]), model)
         pipeline.fit(recheck_x[train_idx], recheck_y[train_idx])
-        return prauc(
-            recheck_y[test_idx], pipeline.predict_proba(recheck_x[test_idx])[:, 1]
-        )
+        return prauc(recheck_y[test_idx], pipeline.predict_proba(recheck_x[test_idx])[:, 1])
 
     recheck_tasks = [
         (model_name, set_name, fold)
@@ -1044,7 +1049,9 @@ def _(
     recheck_scores = pl.DataFrame(
         [
             (*task, score)
-            for task, score in zip(recheck_tasks, run_parallel(recheck_fold, recheck_tasks), strict=True)
+            for task, score in zip(
+                recheck_tasks, run_parallel(recheck_fold, recheck_tasks), strict=True
+            )
         ],
         schema=["model", "feature_set", "fold", "pr_auc"],
         orient="row",
