@@ -113,3 +113,10 @@ def test_fitted_transformer_survives_a_joblib_round_trip(tmp_path: Path) -> None
     joblib.dump(transformer, path)
     restored = joblib.load(path)
     assert restored.transform(readings()).equals(transformer.transform(readings()))
+
+
+def test_tolerant_transformer_encodes_an_absent_or_unknown_type_as_zeros() -> None:
+    transformer = build_feature_transformer(tolerate_unknown_type=True).fit(readings())
+    for value in (None, "X"):
+        odd = readings().head(1).with_columns(pl.lit(value, dtype=pl.String).alias("Type"))
+        assert transformer.transform(odd).select("Type_L", "Type_M", "Type_H").row(0) == (0, 0, 0)

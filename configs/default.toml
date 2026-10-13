@@ -21,3 +21,38 @@ cost_ratios = [5, 10, 20]
 # Confidence intervals on the final test metrics (stratified bootstrap resamples).
 [evaluation]
 bootstrap_resamples = 2000
+
+# Missing-data policy (ADR 0008, Proposed). Margins are judgement calls fixed before any number.
+# A pattern of absent inputs is scorable only if, at the frozen Operating threshold (paired on
+# identical folds): retained saving over "flag nothing" (minus one corrected SE) >= min_retained_saving,
+# recall falls by <= max_recall_drop (absolute) and the Flag rate stays within the ratio band.
+# challenger_margin: retained saving a more complex strategy must add over a simpler one.
+# stress_speed_quantile: "high speed" for the torque-absent-at-high-speed stress.
+# assumed_missing_rates: per-input rates for the data-loss check. ASSUMPTIONS: the data has no nulls.
+[missing_data]
+min_retained_saving = 0.90
+max_recall_drop = 0.10
+flag_rate_ratio_min = 0.5
+flag_rate_ratio_max = 2.0
+challenger_margin = 0.05
+stress_speed_quantile = 0.75
+assumed_missing_rates = [0.01, 0.05, 0.10]
+
+# Review triggers for the data-pipeline health tab (ADR 0008). Defaults set by the project owner,
+# not measured; rates are shares of all Readings, over review_window_weeks consecutive weeks that
+# each have at least min_weekly_readings Readings.
+# recoverable_refusal_rate: review building imputation at or above this, if refusals are spread out
+#   (the top_sources most-refusing sources hold less than max_source_concentration).
+# unrecoverable_refusal_rate: at or above this, imputation is not the lever.
+# informative_band_share: one training-quartile band holding more than this share of refused
+#   Readings, or refused Readings failing informative_failure_rate_ratio times as often as complete
+#   ones, means absence looks informative.
+[pipeline_health]
+review_window_weeks = 2
+min_weekly_readings = 1000
+recoverable_refusal_rate = 0.10
+unrecoverable_refusal_rate = 0.10
+top_sources = 5
+max_source_concentration = 0.50
+informative_band_share = 0.50
+informative_failure_rate_ratio = 2.0

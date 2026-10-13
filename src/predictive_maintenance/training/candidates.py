@@ -28,6 +28,11 @@ from predictive_maintenance.preprocessing.features import (
     ENGINEERED_FEATURES,
     build_feature_transformer,
 )
+from predictive_maintenance.preprocessing.imputation import (
+    IMPUTING_STRATEGIES,
+    STRATEGIES,
+    InputImputer,
+)
 
 Role = Literal["baseline", "selectable", "reference"]
 
@@ -116,15 +121,25 @@ class Candidate:
     seed: int
     engineered: tuple[str, ...] = ENGINEERED_FEATURES
 
-    def make_pipeline(self, calibration: str | None = None) -> Pipeline:
+    def make_pipeline(
+        self, calibration: str | None = None, *, missing_strategy: str | None = None
+    ) -> Pipeline:
         """Unfitted feature transformer + model, optionally wrapped in probability calibration.
 
         The transformer derives the ``engineered`` features (all three of ADR 0004 by default;
         ``dataclasses.replace(candidate, engineered=())`` gives the raw-feature variant).
+        ``missing_strategy`` (ADR 0008) adds an ``InputImputer`` step before the features:
+        ``median``, ``regression`` or ``native``. ``None`` and ``reject`` give the plain pipeline,
+        which cannot score an Incomplete reading (the inference layer refuses it first).
 
         Raises:
-            ValueError: if ``calibration`` is not one of ``CALIBRATION_METHODS``.
+            ValueError: if ``calibration`` is not one of ``CALIBRATION_METHODS`` or
+                ``missing_strategy`` is not a known strategy.
         """
+        if missing_strategy not in (None, *STRATEGIES):
+            raise ValueError(
+                f"missing_strategy must be one of {STRATEGIES}, got {missing_strategy!r}"
+            )
         model = self.make_model()
         if calibration is not None:
             if calibration not in CALIBRATION_METHODS:
@@ -136,13 +151,20 @@ class Candidate:
                 method=calibration,
                 cv=StratifiedKFold(CALIBRATION_FOLDS, shuffle=True, random_state=self.seed),
             )
-        return Pipeline(
-            [
-                ("features", build_feature_transformer(self.engineered)),
-                ("array", FunctionTransformer(_frame_to_array)),
-                ("model", model),
-            ]
-        )
+        steps: list[tuple[str, Any]] = []
+        if missing_strategy in IMPUTING_STRATEGIES:
+            steps.append(("impute", InputImputer(missing_strategy)))
+        steps += [
+            (
+                "features",
+                build_feature_transformer(
+                    self.engineered, tolerate_unknown_type=missing_strategy == "native"
+                ),
+            ),
+            ("array", FunctionTransformer(_frame_to_array)),
+            ("model", model),
+        ]
+        return Pipeline(steps)
 
 
 def build_candidates(seed: int) -> dict[str, Candidate]:

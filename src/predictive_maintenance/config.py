@@ -40,6 +40,53 @@ class EvaluationConfig:
 
 
 @dataclass(frozen=True)
+class MissingDataConfig:
+    """Missing-data policy margins (ADR 0008), all judgement calls fixed before any number.
+
+    A pattern of absent inputs is scorable only if, at the frozen Operating threshold, it keeps at
+    least ``min_retained_saving`` of the complete-data saving over *flag nothing* (after subtracting
+    one corrected SE), recall falls by at most ``max_recall_drop`` (absolute), and the Flag rate
+    stays within ``flag_rate_ratio_min`` to ``flag_rate_ratio_max`` of the complete-data rate.
+    A more complex strategy replaces a simpler one only by ``challenger_margin`` of retained saving.
+    ``stress_speed_quantile`` sets "high speed" for the informative-missingness stress, and
+    ``assumed_missing_rates`` are per-input rates (assumptions, the data has no nulls) for the
+    data-loss check.
+    """
+
+    min_retained_saving: float
+    max_recall_drop: float
+    flag_rate_ratio_min: float
+    flag_rate_ratio_max: float
+    challenger_margin: float
+    stress_speed_quantile: float
+    assumed_missing_rates: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class PipelineHealthConfig:
+    """Review triggers for the data-pipeline health tab (ADR 0008), defaults set by the owner.
+
+    Rates are shares of all Readings in a window of ``review_window_weeks`` consecutive weeks, each
+    with at least ``min_weekly_readings`` Readings. Imputation is worth reviewing when the
+    Recoverable refusal rate reaches ``recoverable_refusal_rate`` and refusals are spread out
+    (the ``top_sources`` most-refusing sources hold less than ``max_source_concentration``); it is
+    not the lever when the unrecoverable rate reaches ``unrecoverable_refusal_rate``. Absence looks
+    informative when one training-quartile band holds more than ``informative_band_share`` of
+    refused Readings, or refused Readings fail more than ``informative_failure_rate_ratio`` times
+    as often as complete ones.
+    """
+
+    review_window_weeks: int
+    min_weekly_readings: int
+    recoverable_refusal_rate: float
+    unrecoverable_refusal_rate: float
+    top_sources: int
+    max_source_concentration: float
+    informative_band_share: float
+    informative_failure_rate_ratio: float
+
+
+@dataclass(frozen=True)
 class Config:
     """Run configuration. All randomness in the project is seeded from ``seed``."""
 
@@ -47,6 +94,8 @@ class Config:
     split: SplitConfig
     threshold: ThresholdConfig
     evaluation: EvaluationConfig
+    missing_data: MissingDataConfig
+    pipeline_health: PipelineHealthConfig
 
 
 def _integer(table: dict[str, object], name: str, where: str, minimum: int | None = None) -> int:
@@ -101,12 +150,85 @@ def _evaluation(raw: dict[str, object], path: Path) -> EvaluationConfig:
     )
 
 
+def _missing_data(raw: dict[str, object], path: Path) -> MissingDataConfig:
+    table = raw.get("missing_data")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: a [missing_data] table is required")
+    where = f"{path} [missing_data]"
+
+    def number(name: str, *, exclusive_high: bool = False) -> float:
+        """A number in (0, 1] (or (0, 1) when ``exclusive_high``)."""
+        value = table.get(name)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise ValueError(f"{where}: {name!r} must be a number in (0, 1], got {value!r}")
+        if value <= 0 or value > 1 or (exclusive_high and value == 1):
+            raise ValueError(f"{where}: {name!r} must be a number in (0, 1], got {value!r}")
+        return float(value)
+
+    ratio_min = number("flag_rate_ratio_min", exclusive_high=True)
+    ratio_max = table.get("flag_rate_ratio_max")
+    if isinstance(ratio_max, bool) or not isinstance(ratio_max, int | float) or ratio_max < 1:
+        raise ValueError(f"{where}: 'flag_rate_ratio_max' must be a number >= 1, got {ratio_max!r}")
+    rates = table.get("assumed_missing_rates")
+    if (
+        not isinstance(rates, list)
+        or not rates
+        or any(
+            isinstance(r, bool) or not isinstance(r, int | float) or not 0 < r < 1 for r in rates
+        )
+        or list(rates) != sorted(set(rates))
+    ):
+        raise ValueError(
+            f"{where}: 'assumed_missing_rates' must be ascending, distinct numbers in (0, 1), "
+            f"got {rates!r}"
+        )
+    return MissingDataConfig(
+        min_retained_saving=number("min_retained_saving"),
+        max_recall_drop=number("max_recall_drop"),
+        flag_rate_ratio_min=ratio_min,
+        flag_rate_ratio_max=float(ratio_max),
+        challenger_margin=number("challenger_margin"),
+        stress_speed_quantile=number("stress_speed_quantile", exclusive_high=True),
+        assumed_missing_rates=tuple(float(r) for r in rates),
+    )
+
+
+def _pipeline_health(raw: dict[str, object], path: Path) -> PipelineHealthConfig:
+    table = raw.get("pipeline_health")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: a [pipeline_health] table is required")
+    where = f"{path} [pipeline_health]"
+
+    def share(name: str) -> float:
+        value = table.get(name)
+        if isinstance(value, bool) or not isinstance(value, int | float) or not 0 < value <= 1:
+            raise ValueError(f"{where}: {name!r} must be a number in (0, 1], got {value!r}")
+        return float(value)
+
+    ratio = table.get("informative_failure_rate_ratio")
+    if isinstance(ratio, bool) or not isinstance(ratio, int | float) or ratio <= 1:
+        raise ValueError(
+            f"{where}: 'informative_failure_rate_ratio' must be a number > 1, got {ratio!r}"
+        )
+    return PipelineHealthConfig(
+        review_window_weeks=_integer(table, "review_window_weeks", where, minimum=1),
+        min_weekly_readings=_integer(table, "min_weekly_readings", where, minimum=1),
+        recoverable_refusal_rate=share("recoverable_refusal_rate"),
+        unrecoverable_refusal_rate=share("unrecoverable_refusal_rate"),
+        top_sources=_integer(table, "top_sources", where, minimum=1),
+        max_source_concentration=share("max_source_concentration"),
+        informative_band_share=share("informative_band_share"),
+        informative_failure_rate_ratio=float(ratio),
+    )
+
+
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
     """Load the run configuration from a TOML file.
 
     Raises:
-        ValueError: if ``seed`` or the ``[split]``, ``[threshold]`` or ``[evaluation]`` tables and
-            their settings are absent or invalid.
+        ValueError: if ``seed`` or the ``[split]``, ``[threshold]``, ``[evaluation]``,
+            ``[missing_data]`` or ``[pipeline_health]`` tables and their settings are absent or
+            invalid.
     """
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
@@ -130,4 +252,6 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
         ),
         threshold=_threshold(raw, path),
         evaluation=_evaluation(raw, path),
+        missing_data=_missing_data(raw, path),
+        pipeline_health=_pipeline_health(raw, path),
     )

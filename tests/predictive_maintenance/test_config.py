@@ -6,6 +6,8 @@ from predictive_maintenance.config import (
     DEFAULT_CONFIG_PATH,
     Config,
     EvaluationConfig,
+    MissingDataConfig,
+    PipelineHealthConfig,
     SplitConfig,
     ThresholdConfig,
     load_config,
@@ -25,6 +27,25 @@ cost_ratios = [5, 10, 20]
 
 [evaluation]
 bootstrap_resamples = 500
+
+[missing_data]
+min_retained_saving = 0.8
+max_recall_drop = 0.2
+flag_rate_ratio_min = 0.4
+flag_rate_ratio_max = 3
+challenger_margin = 0.1
+stress_speed_quantile = 0.9
+assumed_missing_rates = [0.02, 0.2]
+
+[pipeline_health]
+review_window_weeks = 3
+min_weekly_readings = 500
+recoverable_refusal_rate = 0.2
+unrecoverable_refusal_rate = 0.3
+top_sources = 3
+max_source_concentration = 0.6
+informative_band_share = 0.7
+informative_failure_rate_ratio = 3
 """
 
 
@@ -51,7 +72,100 @@ def test_load_config_reads_seed_and_split_from_the_given_file(tmp_path: Path) ->
         split=SplitConfig(test_size=0.25, cv_folds=4, cv_repeats=2),
         threshold=ThresholdConfig(default_cost_ratio=10.0, cost_ratios=(5.0, 10.0, 20.0)),
         evaluation=EvaluationConfig(bootstrap_resamples=500),
+        missing_data=MissingDataConfig(
+            min_retained_saving=0.8,
+            max_recall_drop=0.2,
+            flag_rate_ratio_min=0.4,
+            flag_rate_ratio_max=3.0,
+            challenger_margin=0.1,
+            stress_speed_quantile=0.9,
+            assumed_missing_rates=(0.02, 0.2),
+        ),
+        pipeline_health=PipelineHealthConfig(
+            review_window_weeks=3,
+            min_weekly_readings=500,
+            recoverable_refusal_rate=0.2,
+            unrecoverable_refusal_rate=0.3,
+            top_sources=3,
+            max_source_concentration=0.6,
+            informative_band_share=0.7,
+            informative_failure_rate_ratio=3.0,
+        ),
     )
+
+
+def test_default_config_holds_the_review_triggers_set_in_adr_0008() -> None:
+    assert load_config().pipeline_health == PipelineHealthConfig(
+        review_window_weeks=2,
+        min_weekly_readings=1000,
+        recoverable_refusal_rate=0.10,
+        unrecoverable_refusal_rate=0.10,
+        top_sources=5,
+        max_source_concentration=0.50,
+        informative_band_share=0.50,
+        informative_failure_rate_ratio=2.0,
+    )
+
+
+@pytest.mark.parametrize(
+    "bad_line",
+    [
+        "review_window_weeks = 0",
+        "review_window_weeks = 1.5",
+        "min_weekly_readings = 0",
+        "recoverable_refusal_rate = 0",
+        "recoverable_refusal_rate = 1.5",
+        "unrecoverable_refusal_rate = true",
+        "top_sources = 0",
+        "max_source_concentration = 0",
+        'informative_band_share = "0.5"',
+        "informative_failure_rate_ratio = 1",
+    ],
+)
+def test_load_config_rejects_invalid_pipeline_health_settings(
+    tmp_path: Path, bad_line: str
+) -> None:
+    name = bad_line.split(" = ")[0]
+    lines = [bad_line if line.startswith(name) else line for line in VALID.splitlines()]
+    with pytest.raises(ValueError, match=name):
+        load_config(write(tmp_path, "\n".join(lines)))
+
+
+def test_default_config_holds_the_missing_data_margins_proposed_in_adr_0008() -> None:
+    assert load_config().missing_data == MissingDataConfig(
+        min_retained_saving=0.90,
+        max_recall_drop=0.10,
+        flag_rate_ratio_min=0.5,
+        flag_rate_ratio_max=2.0,
+        challenger_margin=0.05,
+        stress_speed_quantile=0.75,
+        assumed_missing_rates=(0.01, 0.05, 0.10),
+    )
+
+
+@pytest.mark.parametrize(
+    "bad_line",
+    [
+        "min_retained_saving = 0",
+        "min_retained_saving = 1.5",
+        "max_recall_drop = -0.1",
+        "flag_rate_ratio_min = 1.5",
+        "flag_rate_ratio_min = 0",
+        "flag_rate_ratio_max = 0.5",
+        "challenger_margin = true",
+        "stress_speed_quantile = 0",
+        'stress_speed_quantile = "0.75"',
+        "assumed_missing_rates = []",
+        "assumed_missing_rates = [0.2, 0.02]",
+        "assumed_missing_rates = [0.02, 1]",
+        "assumed_missing_rates = [0.02, 0.02]",
+    ],
+)
+def test_load_config_rejects_invalid_missing_data_settings(tmp_path: Path, bad_line: str) -> None:
+    name = bad_line.split(" = ")[0]
+    lines = [bad_line if line.startswith(name) else line for line in VALID.splitlines()]
+    with pytest.raises(ValueError, match=name):
+        load_config(write(tmp_path, "\n".join(lines)))
 
 
 def test_default_config_holds_the_threshold_settings_proposed_in_adr_0007() -> None:
@@ -62,7 +176,7 @@ def test_default_config_holds_the_threshold_settings_proposed_in_adr_0007() -> N
     assert config.evaluation == EvaluationConfig(bootstrap_resamples=2000)
 
 
-@pytest.mark.parametrize("table", ["threshold", "evaluation"])
+@pytest.mark.parametrize("table", ["threshold", "evaluation", "missing_data", "pipeline_health"])
 def test_load_config_rejects_a_file_without_the_table(tmp_path: Path, table: str) -> None:
     head, _, rest = VALID.partition(f"[{table}]")
     tail = rest.split("\n\n", 1)[1] if "\n\n" in rest else ""

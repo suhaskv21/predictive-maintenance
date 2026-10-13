@@ -21,8 +21,16 @@ The estimated likelihood that a Machine failure is associated with a given Readi
 _Avoid_: Failure prediction, failure probability (as a promise)
 
 **Incomplete reading**:
-A Reading with one or more sensor values absent or unusable at assessment time. Absent from the training data; arises only in use.
+A Reading with one or more of its six inputs (the five sensor values and the product Type) absent or unusable at assessment time. An unusable value (not a number, not finite, or physically impossible) counts as absent. Absent from the training data; arises only in use.
 _Avoid_: Missing row, null record
+
+**Refused reading**:
+An Incomplete reading for which the app declines to give a Failure risk or a Flag, because too much of the evidence is absent for the result to be trusted. The app says which inputs are needed.
+_Avoid_: Rejected row, dropped record, invalid reading
+
+**Recoverable refusal**:
+A Refused reading whose absent inputs are ones a measured imputation strategy would have scored acceptably. Counting these tells the team how much imputation would win back, and so when it is worth building.
+_Avoid_: Fixable row, salvageable record
 
 ## Acting on risk
 

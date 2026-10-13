@@ -14,6 +14,31 @@ added when the ADRs that decide them are accepted.
 - `[evaluation]` (ADR 0007, Proposed): `bootstrap_resamples` = stratified bootstrap resamples for
   confidence intervals on the final test metrics.
 
+- `[missing_data]` (ADR 0008, Proposed): margins for the missing-data policy. All are judgement
+  calls fixed before any result.
+  - `min_retained_saving`: a pattern of absent inputs is scorable only if, at the frozen Operating
+    threshold, it keeps at least this share of the complete-data saving over *flag nothing* (after
+    subtracting one corrected SE).
+  - `max_recall_drop`: largest absolute fall in recall allowed for a scorable pattern.
+  - `flag_rate_ratio_min`, `flag_rate_ratio_max`: allowed band for the Flag rate relative to
+    complete Readings.
+  - `challenger_margin`: retained saving a more complex strategy must add over a simpler one.
+  - `stress_speed_quantile`: what counts as "high speed" in the torque-absent-at-high-speed stress.
+  - `assumed_missing_rates`: per-input missing rates (ascending, in (0, 1)) for the data-loss check.
+    These are **assumptions**: the raw data has no nulls.
+- `[pipeline_health]` (ADR 0008): review triggers for the data-pipeline health tab. Defaults set by
+  the project owner, not measured; the plant can change them. Rates are shares of all Readings.
+  - `review_window_weeks`, `min_weekly_readings`: a trigger needs this many consecutive weeks, each
+    with at least this many Readings.
+  - `recoverable_refusal_rate`: review building imputation when refusals the measured imputation
+    would have scored reach this share (and are not concentrated, see below).
+  - `unrecoverable_refusal_rate`: at or above this share, imputation is not the lever.
+  - `top_sources`, `max_source_concentration`: refusals held by the `top_sources` most-refusing
+    sources at or above this share mean a broken sensor to fix, not an imputation problem.
+  - `informative_band_share`, `informative_failure_rate_ratio`: absence looks informative when one
+    training-quartile band holds more than this share of refused Readings, or refused Readings fail
+    this many times as often as complete ones.
+
 ## What a cost ratio means
 
 A **cost ratio** says how many **false alarms** one **missed failure** is worth.

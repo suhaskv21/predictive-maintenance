@@ -190,3 +190,47 @@ def test_engineered_features_default_to_all_three_and_can_be_dropped() -> None:
     assert candidate.engineered == ENGINEERED_FEATURES
     assert n_columns(candidate) == 3 + 5 + 3
     assert n_columns(replace(candidate, engineered=())) == 3 + 5
+
+
+def _with_absent(frame: pl.DataFrame, *columns: str) -> pl.DataFrame:
+    return frame.with_columns(pl.lit(None, dtype=frame[c].dtype).alias(c) for c in columns)
+
+
+@pytest.mark.parametrize("strategy", [None, "reject", "median", "regression", "native"])
+def test_missing_strategy_pipelines_score_complete_readings_like_the_plain_pipeline(
+    strategy: str | None,
+) -> None:
+    data = readings()
+    x, y = data.select(schema.FEATURE_COLUMNS), data[schema.TARGET].to_numpy()
+    candidate = build_candidates(seed=1)["random_forest_unweighted"]
+    plain = candidate.make_pipeline().fit(x, y).predict_proba(x)
+    other = candidate.make_pipeline(missing_strategy=strategy).fit(x, y).predict_proba(x)
+    assert np.array_equal(plain, other)
+
+
+@pytest.mark.parametrize("strategy", ["median", "regression", "native"])
+@pytest.mark.parametrize("family", SWITCHABLE_FAMILIES)
+def test_strategy_pipelines_score_an_incomplete_reading(strategy: str, family: str) -> None:
+    data = readings()
+    x, y = data.select(schema.FEATURE_COLUMNS), data[schema.TARGET].to_numpy()
+    pipeline = build_candidates(seed=1)[f"{family}_unweighted"].make_pipeline(
+        missing_strategy=strategy
+    )
+    pipeline.fit(x, y)
+    incomplete = _with_absent(x.head(5), "Torque [Nm]", "Type")
+    scores = pipeline.predict_proba(incomplete)[:, 1]
+    assert scores.shape == (5,)
+    assert np.isfinite(scores).all()
+
+
+def test_reject_and_the_plain_pipeline_cannot_score_an_incomplete_reading() -> None:
+    data = readings()
+    x, y = data.select(schema.FEATURE_COLUMNS), data[schema.TARGET].to_numpy()
+    plain = build_candidates(seed=1)["random_forest_unweighted"].make_pipeline().fit(x, y)
+    with pytest.raises(ValueError):
+        plain.predict_proba(_with_absent(x.head(2), "Type"))
+
+
+def test_an_unknown_missing_strategy_is_rejected() -> None:
+    with pytest.raises(ValueError, match="missing_strategy"):
+        build_candidates(seed=1)["random_forest_unweighted"].make_pipeline(missing_strategy="mean")

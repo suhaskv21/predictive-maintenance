@@ -56,11 +56,15 @@ class EngineeredFeatures(TransformerMixin, BaseEstimator):  # type: ignore[misc]
         return list(self.features)
 
 
-def build_feature_transformer(engineered: Collection[str] = ()) -> ColumnTransformer:
+def build_feature_transformer(
+    engineered: Collection[str] = (), *, tolerate_unknown_type: bool = False
+) -> ColumnTransformer:
     """Build the unfitted feature transformer for one cell of the raw/engineered comparison.
 
     Output (polars): one-hot ``Type`` (L, M, H), the five standardized sensors and the
-    standardized ``engineered`` features, in the canonical ``ENGINEERED_FEATURES`` order.
+    standardized ``engineered`` features, in the canonical ``ENGINEERED_FEATURES`` order. With
+    ``tolerate_unknown_type`` an absent or unknown ``Type`` encodes as all zeros instead of raising
+    (the ``native`` missing-data strategy, ADR 0008).
 
     Raises:
         ValueError: if ``engineered`` names a feature outside ``ENGINEERED_FEATURES``.
@@ -74,7 +78,11 @@ def build_feature_transformer(engineered: Collection[str] = ()) -> ColumnTransfo
     branches: list[tuple[str, object, list[str]]] = [
         (
             "type",
-            OneHotEncoder(categories=[list(schema.TYPE_LEVELS)], sparse_output=False),
+            OneHotEncoder(
+                categories=[list(schema.TYPE_LEVELS)],
+                sparse_output=False,
+                handle_unknown="ignore" if tolerate_unknown_type else "error",
+            ),
             [schema.CATEGORICAL_FEATURE],
         ),
         ("sensors", StandardScaler(), list(schema.NUMERIC_FEATURES)),
