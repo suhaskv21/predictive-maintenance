@@ -105,10 +105,10 @@ class InputImputer(TransformerMixin, BaseEstimator):  # type: ignore[misc]
                 continue
             rows = np.array([k == absent for k in keys])
             present, model = self.models_[absent]
-            predicted = model.predict(values[np.ix_(rows, [_SENSORS.index(c) for c in present])])
-            values[np.ix_(rows, [_SENSORS.index(c) for c in absent])] = predicted.reshape(
-                int(rows.sum()), len(absent)
-            )
+            present_cols = np.array([_SENSORS.index(c) for c in present], dtype=np.intp)
+            absent_cols = np.array([_SENSORS.index(c) for c in absent], dtype=np.intp)
+            predicted = model.predict(values[np.ix_(rows, present_cols)])
+            values[np.ix_(rows, absent_cols)] = predicted.reshape(int(rows.sum()), len(absent))
         filled = pl.DataFrame(values, schema=_SENSORS, orient="row").with_columns(
             pl.col(c).fill_nan(None) for c in _SENSORS
         )

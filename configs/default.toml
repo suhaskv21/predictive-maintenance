@@ -56,3 +56,16 @@ top_sources = 5
 max_source_concentration = 0.50
 informative_band_share = 0.50
 informative_failure_rate_ratio = 2.0
+
+# Per-mode predictability check (ADR 0009, Proposed). Margins are judgement calls fixed before any
+# number. A Failure mode is predictable enough to justify a follow-up ADR only if its mean repeated-CV
+# PR-AUC is at least min_pr_auc, at least min_lift times the mode's prevalence, and exceeds the
+# prevalence by more than one corrected standard error. Failure modes are never features.
+[failure_modes]
+min_pr_auc = 0.30
+min_lift = 5
+
+# App settings (ADR 0009, Proposed). example_count: Example readings offered, all from the train
+# partition (never the holdout).
+[app]
+example_count = 10

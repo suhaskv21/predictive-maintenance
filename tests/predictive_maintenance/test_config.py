@@ -4,8 +4,10 @@ import pytest
 
 from predictive_maintenance.config import (
     DEFAULT_CONFIG_PATH,
+    AppConfig,
     Config,
     EvaluationConfig,
+    FailureModesConfig,
     MissingDataConfig,
     PipelineHealthConfig,
     SplitConfig,
@@ -46,6 +48,13 @@ top_sources = 3
 max_source_concentration = 0.6
 informative_band_share = 0.7
 informative_failure_rate_ratio = 3
+
+[failure_modes]
+min_pr_auc = 0.4
+min_lift = 3
+
+[app]
+example_count = 6
 """
 
 
@@ -91,7 +100,37 @@ def test_load_config_reads_seed_and_split_from_the_given_file(tmp_path: Path) ->
             informative_band_share=0.7,
             informative_failure_rate_ratio=3.0,
         ),
+        failure_modes=FailureModesConfig(min_pr_auc=0.4, min_lift=3.0),
+        app=AppConfig(example_count=6),
     )
+
+
+def test_default_config_holds_the_failure_mode_rule_and_app_settings_proposed_in_adr_0009() -> None:
+    config = load_config()
+    assert config.failure_modes == FailureModesConfig(min_pr_auc=0.30, min_lift=5.0)
+    assert config.app == AppConfig(example_count=10)
+
+
+@pytest.mark.parametrize(
+    "bad_line",
+    [
+        "min_pr_auc = 0",
+        "min_pr_auc = 1",
+        'min_pr_auc = "0.3"',
+        "min_lift = 1",
+        "min_lift = true",
+        "example_count = 0",
+        "example_count = 2.5",
+        "example_count = true",
+    ],
+)
+def test_load_config_rejects_invalid_failure_mode_and_app_settings(
+    tmp_path: Path, bad_line: str
+) -> None:
+    name = bad_line.split(" = ")[0]
+    lines = [bad_line if line.startswith(name) else line for line in VALID.splitlines()]
+    with pytest.raises(ValueError, match=name):
+        load_config(write(tmp_path, "\n".join(lines)))
 
 
 def test_default_config_holds_the_review_triggers_set_in_adr_0008() -> None:
@@ -176,7 +215,9 @@ def test_default_config_holds_the_threshold_settings_proposed_in_adr_0007() -> N
     assert config.evaluation == EvaluationConfig(bootstrap_resamples=2000)
 
 
-@pytest.mark.parametrize("table", ["threshold", "evaluation", "missing_data", "pipeline_health"])
+@pytest.mark.parametrize(
+    "table", ["threshold", "evaluation", "missing_data", "pipeline_health", "failure_modes", "app"]
+)
 def test_load_config_rejects_a_file_without_the_table(tmp_path: Path, table: str) -> None:
     head, _, rest = VALID.partition(f"[{table}]")
     tail = rest.split("\n\n", 1)[1] if "\n\n" in rest else ""

@@ -87,6 +87,26 @@ class PipelineHealthConfig:
 
 
 @dataclass(frozen=True)
+class FailureModesConfig:
+    """Rule for the per-mode predictability check (ADR 0009), fixed before any number.
+
+    A Failure mode is predictable enough to justify a follow-up ADR only if its mean repeated-CV
+    PR-AUC is at least ``min_pr_auc``, at least ``min_lift`` times the mode's prevalence, and
+    exceeds the prevalence by more than one corrected standard error.
+    """
+
+    min_pr_auc: float
+    min_lift: float
+
+
+@dataclass(frozen=True)
+class AppConfig:
+    """App settings (ADR 0009): ``example_count`` is how many Example readings are offered."""
+
+    example_count: int
+
+
+@dataclass(frozen=True)
 class Config:
     """Run configuration. All randomness in the project is seeded from ``seed``."""
 
@@ -96,6 +116,8 @@ class Config:
     evaluation: EvaluationConfig
     missing_data: MissingDataConfig
     pipeline_health: PipelineHealthConfig
+    failure_modes: FailureModesConfig
+    app: AppConfig
 
 
 def _integer(table: dict[str, object], name: str, where: str, minimum: int | None = None) -> int:
@@ -222,13 +244,34 @@ def _pipeline_health(raw: dict[str, object], path: Path) -> PipelineHealthConfig
     )
 
 
+def _failure_modes(raw: dict[str, object], path: Path) -> FailureModesConfig:
+    table = raw.get("failure_modes")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: a [failure_modes] table is required")
+    where = f"{path} [failure_modes]"
+    pr_auc = table.get("min_pr_auc")
+    if isinstance(pr_auc, bool) or not isinstance(pr_auc, int | float) or not 0 < pr_auc < 1:
+        raise ValueError(f"{where}: 'min_pr_auc' must be a number in (0, 1), got {pr_auc!r}")
+    lift = table.get("min_lift")
+    if isinstance(lift, bool) or not isinstance(lift, int | float) or lift <= 1:
+        raise ValueError(f"{where}: 'min_lift' must be a number > 1, got {lift!r}")
+    return FailureModesConfig(min_pr_auc=float(pr_auc), min_lift=float(lift))
+
+
+def _app(raw: dict[str, object], path: Path) -> AppConfig:
+    table = raw.get("app")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: an [app] table is required")
+    return AppConfig(example_count=_integer(table, "example_count", f"{path} [app]", minimum=1))
+
+
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
     """Load the run configuration from a TOML file.
 
     Raises:
         ValueError: if ``seed`` or the ``[split]``, ``[threshold]``, ``[evaluation]``,
-            ``[missing_data]`` or ``[pipeline_health]`` tables and their settings are absent or
-            invalid.
+            ``[missing_data]``, ``[pipeline_health]``, ``[failure_modes]`` or ``[app]`` tables and
+            their settings are absent or invalid.
     """
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
@@ -254,4 +297,6 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
         evaluation=_evaluation(raw, path),
         missing_data=_missing_data(raw, path),
         pipeline_health=_pipeline_health(raw, path),
+        failure_modes=_failure_modes(raw, path),
+        app=_app(raw, path),
     )

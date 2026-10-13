@@ -98,9 +98,7 @@ def test_every_candidate_fits_and_scores_one_value_per_reading(name: str) -> Non
     assert np.isfinite(scores).all()
 
 
-@pytest.mark.parametrize(
-    "family", ["random_forest", "hist_gradient_boosting", "lightgbm", "xgboost"]
-)
+@pytest.mark.parametrize("family", ["hist_gradient_boosting", "lightgbm", "xgboost"])
 def test_class_weighting_raises_predicted_risk_for_the_rare_class(family: str) -> None:
     data = readings()
     x, y = data.select(schema.FEATURE_COLUMNS), data[schema.TARGET].to_numpy()
@@ -110,6 +108,16 @@ def test_class_weighting_raises_predicted_risk_for_the_rare_class(family: str) -
         for name in variant_names(family)
     )
     assert weighted > plain
+
+
+def test_weighted_forest_is_configured_with_balanced_class_weights() -> None:
+    # Fully grown trees make the forest's predicted risk insensitive to class weights (the sign of
+    # the effect changed between scikit-learn versions), so the configuration is tested instead.
+    plain, weighted = (
+        build_candidates(seed=1)[name].make_model() for name in variant_names("random_forest")
+    )
+    assert plain.class_weight is None
+    assert weighted.class_weight == "balanced"
 
 
 def test_balanced_sample_weights_use_only_the_rows_it_is_fitted_on() -> None:

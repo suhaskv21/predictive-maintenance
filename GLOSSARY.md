@@ -8,6 +8,10 @@ Language for assessing the failure risk of industrial machines from sensor data,
 One snapshot of a machine's sensor values (air temperature, process temperature, rotational speed, torque, tool wear) together with its product Type. The unit a prediction is made about.
 _Avoid_: Sample, record, row, observation
 
+**Example reading**:
+A Reading taken from the training data and offered for demonstration. Its recorded Machine failure outcome is shown, quietly. The model has already seen it, so agreement with the outcome proves nothing about accuracy.
+_Avoid_: Test case, sample, holdout reading
+
 **Machine failure**:
 The recorded outcome that a machine failed at the time of a reading. The prediction target.
 _Avoid_: Breakdown, fault, defect
@@ -25,7 +29,7 @@ A Reading with one or more of its six inputs (the five sensor values and the pro
 _Avoid_: Missing row, null record
 
 **Refused reading**:
-An Incomplete reading for which the app declines to give a Failure risk or a Flag, because too much of the evidence is absent for the result to be trusted. The app says which inputs are needed.
+An Incomplete reading for which the app declines to give a Failure risk or a Flag, because too much of the evidence is absent for the result to be trusted. The app says which inputs are needed, and that "not assessed" never means "no Flag" or "fine".
 _Avoid_: Rejected row, dropped record, invalid reading
 
 **Recoverable refusal**:
@@ -55,7 +59,7 @@ The Failure risk at or above which a Reading is Flagged, chosen to minimise expe
 _Avoid_: Cutoff, decision boundary, probability threshold
 
 **Risk band**:
-One of three named ranges of Failure risk: Low (not Flagged), Elevated (Flagged, but not at the lower Cost ratio considered), High (Flagged under every Cost ratio considered).
+One of three named ranges of Failure risk: Low (not Flagged), Elevated (Flagged, but not at the lower Cost ratio considered), High (Flagged under every Cost ratio considered). Considered and not adopted: the data could not support a middle band. The Flag is binary.
 _Avoid_: Risk level, tier, severity, category
 
 **Risk floor**:

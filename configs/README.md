@@ -38,6 +38,13 @@ added when the ADRs that decide them are accepted.
   - `informative_band_share`, `informative_failure_rate_ratio`: absence looks informative when one
     training-quartile band holds more than this share of refused Readings, or refused Readings fail
     this many times as often as complete ones.
+- `[failure_modes]` (ADR 0009, Proposed): the pre-declared rule for the per-mode predictability
+  check. Judgement calls fixed before any number. Failure modes are never features.
+  - `min_pr_auc`: smallest mean repeated-CV PR-AUC for a mode to count as predictable.
+  - `min_lift`: smallest ratio of that PR-AUC to the mode's prevalence. The PR-AUC must also exceed
+    the prevalence by more than one corrected standard error.
+- `[app]` (ADR 0009, Proposed): `example_count` = how many Example readings the app offers, all
+  drawn from the train partition (never the holdout).
 
 ## What a cost ratio means
 

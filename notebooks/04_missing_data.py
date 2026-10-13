@@ -96,7 +96,7 @@ def _(mo):
        per absent set, fitted on complete training rows), `native` (NaN passed to the model, which
        routes it arbitrarily because it never saw one). Imputation runs before the features are
        derived and is fitted on the training fold only. No indicators (nothing to learn them from).
-    3. **Frozen Operating threshold** (ADR 0007, 10:1) applied unchanged. Re-derived below and
+    3. **Frozen Operating threshold** (ADR 0007, 10:1; XGBoost's per ADR 0011) applied unchanged. Re-derived below and
        checked against the ADR.
     4. **Scorable pattern**, paired with the complete Readings on identical folds, all three:
        retained saving R minus its Nadeau–Bengio corrected SE ≥ 0.90 (R = saving over *flag
@@ -171,30 +171,31 @@ def _(
     train,
     y,
 ):
-    # Re-derive each frozen threshold exactly as notebook 03b does, and check it against ADR 0007.
-    ADR_0007 = {
+    # Re-derive each frozen threshold exactly as notebook 03b does, and check it against the
+    # accepted figures: ADR 0007, except XGBoost's, re-derived under the matched pins (ADR 0011).
+    ADR_FROZEN = {
         "random_forest_unweighted": 0.218,
         "lightgbm_unweighted": 0.134,
-        "xgboost_unweighted": 0.075,
+        "xgboost_unweighted": 0.073,
     }
     frozen = {}
     for _name in offered:
         _matrix = repeat_scores(candidates[_name], train, folds, n_splits=n_splits)
         # The median over repeats does not depend on the bootstrap; two resamples are enough here.
         frozen[_name] = estimate_threshold(y, _matrix, ratio, n_resamples=2, seed=seed).median
-    drift = {n: round(frozen[n], 3) - ADR_0007[n] for n in offered}
+    drift = {n: round(frozen[n], 3) - ADR_FROZEN[n] for n in offered}
     mo.stop(
         any(abs(d) > 5e-4 for d in drift.values()),
-        mo.md(f"**Frozen thresholds differ from ADR 0007: {frozen}. Stopped.**"),
+        mo.md(f"**Frozen thresholds differ from ADR 0007 / 0011: {frozen}. Stopped.**"),
     )
     mo.vstack(
         [
-            mo.md("### Frozen Operating thresholds (re-derived, match ADR 0007)"),
+            mo.md("### Frozen Operating thresholds (re-derived, match ADR 0007 / 0011)"),
             pl.DataFrame(
                 {
                     "model": offered,
                     "threshold": [frozen[n] for n in offered],
-                    "adr_0007": [ADR_0007[n] for n in offered],
+                    "accepted": [ADR_FROZEN[n] for n in offered],
                 }
             ),
         ]
