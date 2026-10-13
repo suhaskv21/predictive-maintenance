@@ -66,6 +66,12 @@ _Avoid_: Risk level, tier, severity, category
 The lowest Failure risk shown as a number; anything below is shown as "under" the floor, because the models cannot resolve very small risks.
 _Avoid_: Minimum probability, zero risk
 
+## Evaluating the model
+
+**Holdout**:
+The stratified 30 % of the Readings set aside before anything is fitted, and scored once, for one model, at the end. The only unbiased estimate of how the model does on Readings it has not seen.
+_Avoid_: Test set, test partition, validation set
+
 ## Watching the data pipeline
 
 **Session log**:
