@@ -29,3 +29,17 @@ Priorities: leakage-safe evaluation, reproducibility, clear operational communic
 - Never commit secrets, `.env`, or generated artifacts in `models/`.
 - Keep changes small and reviewable; one concern per commit.
 - Do not claim done without running `just check` and showing the result.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` + `docs/adr/`. See `docs/agents/domain.md`.
