@@ -12,9 +12,13 @@ dependencies = [
     "lightgbm==4.6.0",
     "polars==1.33.1",
     "scikit-learn==1.8.0",
-    "streamlit>=1.65.0",
     "xgboost==2.1.4",
 ]
+
+# Not in `dependencies`: the wheel installed in the browser must name only Pyodide-bundled packages
+# (ADR 0012). Install with `uv sync --extra streamlit` to run the Streamlit stub.
+[project.optional-dependencies]
+streamlit = ["streamlit>=1.65.0"]
 
 # The browser build (ADR 0009) runs in marimo's Pyodide, which ships fixed library versions. The
 # pins above and these constraints equal that Pyodide's, so native and browser runs agree.
@@ -31,7 +35,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "altair>=6.3.0",
-    "marimo>=0.25.1",
+    "marimo==0.25.1",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
@@ -48,7 +52,8 @@ source = ["src/predictive_maintenance"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
-extend-exclude = ["notebooks"]
+# The entry notebook is exempt from the linter (ADR 0012): marimo owns its cell layout.
+extend-exclude = ["notebooks", "marimo_app.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "N", "D1"]

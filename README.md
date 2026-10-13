@@ -23,6 +23,7 @@ just check         # lint, type-check, test
 | `just typecheck` | mypy (strict) on `src/` |
 | `just check` | All of the above |
 | `just app` | Run the Streamlit app locally |
+| `just marimo-app` | Run the one-screen marimo app locally (needs `just train` first) |
 | `just notebook` | Open marimo notebook editor |
 
 Training/evaluation commands: _TODO once the pipeline exists._
@@ -39,7 +40,8 @@ src/predictive_maintenance/   package (one subpackage per pipeline stage)
   monitoring/      drift / prediction-distribution metrics (design + light impl)
   app/             Streamlit UI code
 tests/predictive_maintenance/ mirrors src/ one-to-one (tests/.../x/test_y.py <-> src/.../x/y.py)
-streamlit_app.py              thin deployment entrypoint -> predictive_maintenance.app
+marimo_app.py                 one-screen app (marimo); renders inference/ output only
+streamlit_app.py              thin deployment entrypoint (needs `uv sync --extra streamlit`)
 notebooks/                    marimo notebooks (exploration only, never required to run the pipeline)
 docs/adr/                     architecture decision records
 docs/design/                  system-design diagram and notes

@@ -1387,8 +1387,12 @@ dependencies = [
     { name = "lightgbm" },
     { name = "polars" },
     { name = "scikit-learn" },
-    { name = "streamlit" },
     { name = "xgboost" },
+]
+
+[package.optional-dependencies]
+streamlit = [
+    { name = "streamlit" },
 ]
 
 [package.dev-dependencies]
@@ -1407,14 +1411,15 @@ requires-dist = [
     { name = "lightgbm", specifier = "==4.6.0" },
     { name = "polars", specifier = "==1.33.1" },
     { name = "scikit-learn", specifier = "==1.8.0" },
-    { name = "streamlit", specifier = ">=1.65.0" },
+    { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.65.0" },
     { name = "xgboost", specifier = "==2.1.4" },
 ]
+provides-extras = ["streamlit"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "altair", specifier = ">=6.3.0" },
-    { name = "marimo", specifier = ">=0.25.1" },
+    { name = "marimo", specifier = "==0.25.1" },
     { name = "mypy", specifier = ">=2.4.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
