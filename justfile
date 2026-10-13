@@ -24,5 +24,13 @@ app:
 train:
     uv run python -m predictive_maintenance.training.train
 
+# One-off: scores the Holdout once. A second run refuses; rescoring needs a new ADR.
+holdout:
+    uv run python -m predictive_maintenance.evaluation.holdout
+
+# Build check: the committed Holdout report belongs to the Pipeline in models/.
+holdout-check:
+    uv run python -m predictive_maintenance.evaluation.holdout --check
+
 notebook:
     uv run marimo edit notebooks
