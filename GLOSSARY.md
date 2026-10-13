@@ -65,3 +65,13 @@ _Avoid_: Risk level, tier, severity, category
 **Risk floor**:
 The lowest Failure risk shown as a number; anything below is shown as "under" the floor, because the models cannot resolve very small risks.
 _Avoid_: Minimum probability, zero risk
+
+## Watching the data pipeline
+
+**Session log**:
+The record of every Reading assessed or refused during one visit to the app, with no raw sensor values. It is gone when the visit ends, unless the engineer downloads it; a downloaded one can be loaded back to review.
+_Avoid_: History, audit trail, usage database
+
+**Sample log**:
+A prepared log of invented usage, always labelled as such, that lets the health tab show how its metrics and triggers behave when there is no real traffic. Never real usage.
+_Avoid_: Demo data, fake log, real log
