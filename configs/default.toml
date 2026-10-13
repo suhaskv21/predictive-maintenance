@@ -1,2 +1,9 @@
 # Single source of randomness: every seeded component reads this value.
 seed = 42
+
+# Split and validation, decided in ADR 0005: stratified holdout (test share) and repeated stratified
+# CV on the train partition (folds x repeats).
+[split]
+test_size = 0.3
+cv_folds = 5
+cv_repeats = 5
