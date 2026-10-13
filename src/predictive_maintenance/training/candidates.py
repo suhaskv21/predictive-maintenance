@@ -114,9 +114,13 @@ class Candidate:
     role: Role
     make_model: Callable[[], Any]
     seed: int
+    engineered: tuple[str, ...] = ENGINEERED_FEATURES
 
     def make_pipeline(self, calibration: str | None = None) -> Pipeline:
         """Unfitted feature transformer + model, optionally wrapped in probability calibration.
+
+        The transformer derives the ``engineered`` features (all three of ADR 0004 by default;
+        ``dataclasses.replace(candidate, engineered=())`` gives the raw-feature variant).
 
         Raises:
             ValueError: if ``calibration`` is not one of ``CALIBRATION_METHODS``.
@@ -134,7 +138,7 @@ class Candidate:
             )
         return Pipeline(
             [
-                ("features", build_feature_transformer(ENGINEERED_FEATURES)),
+                ("features", build_feature_transformer(self.engineered)),
                 ("array", FunctionTransformer(_frame_to_array)),
                 ("model", model),
             ]

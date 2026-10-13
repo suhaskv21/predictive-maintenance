@@ -9,7 +9,7 @@ import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from statistics import median
-from typing import Any
+from typing import Any, Literal
 
 import joblib
 import numpy as np
@@ -32,6 +32,21 @@ MAX_LATENCY_MS = 100.0
 MAX_ARTIFACT_MB = 50.0
 LEARNING_CURVE_TRAIN_FRACTION = 0.70 / 0.80  # the 80/20 -> 70/30 step of ADR 0005
 LEARNING_CURVE_MAX_PENALTY = 0.01
+FEATURE_CHECK_AGREE_FLOOR = -0.005  # ADR 0007: all-three minus raw PR-AUC at or above this agrees
+
+
+def feature_check_verdict(mean_delta: float) -> Literal["agrees", "noise", "disagrees"]:
+    """Verdict on ADR 0004's engineered features for one model (ADR 0007 re-verification).
+
+    ``mean_delta`` is the paired mean PR-AUC of all three engineered features minus raw features.
+    It *agrees* at or above ``FEATURE_CHECK_AGREE_FLOOR``, *disagrees* at or below ``-MARGIN`` and
+    is *noise* in between. A disagreement means: stop and ask before touching ADR 0004.
+    """
+    if mean_delta <= -MARGIN:
+        return "disagrees"
+    if mean_delta >= FEATURE_CHECK_AGREE_FLOOR:
+        return "agrees"
+    return "noise"
 
 
 def derived_seeds(seed: int, stream: int, n: int) -> list[int]:

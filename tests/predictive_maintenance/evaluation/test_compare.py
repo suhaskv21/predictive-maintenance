@@ -10,6 +10,7 @@ from predictive_maintenance.evaluation.compare import (
     corrected_se,
     cv_folds,
     derived_seeds,
+    feature_check_verdict,
     measure_operational_cost,
     out_of_fold_scores,
     paired_deltas,
@@ -230,3 +231,18 @@ def test_derived_seeds_are_deterministic_and_stream_specific() -> None:
     assert derived_seeds(42, 1, 5) == derived_seeds(42, 1, 5)
     assert derived_seeds(42, 1, 5) != derived_seeds(42, 2, 5)
     assert len(set(derived_seeds(42, 1, 50))) == 50
+
+
+@pytest.mark.parametrize(
+    ("delta", "verdict"),
+    [
+        (0.08, "agrees"),
+        (-0.005, "agrees"),
+        (-0.0051, "noise"),
+        (-0.0199, "noise"),
+        (-0.02, "disagrees"),
+        (-0.1, "disagrees"),
+    ],
+)
+def test_feature_check_verdict_follows_the_pre_declared_margins(delta: float, verdict: str) -> None:
+    assert feature_check_verdict(delta) == verdict

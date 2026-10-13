@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import numpy as np
 import polars as pl
 import pytest
@@ -5,12 +7,14 @@ from sklearn.base import BaseEstimator
 from sklearn.calibration import CalibratedClassifierCV
 
 from predictive_maintenance.data import schema
+from predictive_maintenance.preprocessing.features import ENGINEERED_FEATURES
 from predictive_maintenance.training.candidates import (
     FAMILIES,
     SELECTION_ORDER,
     SWITCHABLE_FAMILIES,
     TREE_FAMILIES,
     BalancedSampleWeights,
+    Candidate,
     NoveltyScorer,
     build_candidates,
     variant_names,
@@ -172,3 +176,17 @@ def test_pipeline_ignores_outcome_and_identifier_columns() -> None:
         .shape[1]
         == 3 + 5 + 3
     )
+
+
+def test_engineered_features_default_to_all_three_and_can_be_dropped() -> None:
+    data = readings()
+    x, y = data.select(schema.FEATURE_COLUMNS), data[schema.TARGET].to_numpy()
+    candidate = build_candidates(1)["logistic_unweighted"]
+
+    def n_columns(c: Candidate) -> int:
+        pipeline = c.make_pipeline().fit(x, y)
+        return int(pipeline.named_steps["array"].transform(pipeline[0].transform(x)).shape[1])
+
+    assert candidate.engineered == ENGINEERED_FEATURES
+    assert n_columns(candidate) == 3 + 5 + 3
+    assert n_columns(replace(candidate, engineered=())) == 3 + 5

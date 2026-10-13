@@ -7,3 +7,17 @@ seed = 42
 test_size = 0.3
 cv_folds = 5
 cv_repeats = 5
+
+# Operating threshold (ADR 0007). A cost ratio is an ASSUMPTION, not a measured value: how many
+# false alarms (one unnecessary inspection each) one missed failure (unplanned downtime) is worth.
+# 10 means "missing one real failure is as costly as 10 false alarms". The data has no cost
+# information, so set this from site data before real use.
+# `cost_ratios` are shown side by side (ascending); `default_cost_ratio` is the one that sets the
+# operating threshold. It must be one of them and larger than the smallest.
+[threshold]
+default_cost_ratio = 10
+cost_ratios = [5, 10, 20]
+
+# Confidence intervals on the final test metrics (stratified bootstrap resamples).
+[evaluation]
+bootstrap_resamples = 2000

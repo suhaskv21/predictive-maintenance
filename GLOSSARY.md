@@ -23,3 +23,33 @@ _Avoid_: Failure prediction, failure probability (as a promise)
 **Incomplete reading**:
 A Reading with one or more sensor values absent or unusable at assessment time. Absent from the training data; arises only in use.
 _Avoid_: Missing row, null record
+
+## Acting on risk
+
+**Flag**:
+The call that a Reading's Failure risk is high enough to warrant an inspection. The Failure risk at or above the Operating threshold.
+_Avoid_: Alarm, alert, positive, prediction of failure
+
+**Missed failure**:
+A Machine failure whose Reading was not Flagged. Costs unplanned downtime.
+_Avoid_: False negative (in engineer-facing text)
+
+**False alarm**:
+A Flag on a Reading that did not end in a Machine failure. Costs one unnecessary inspection.
+_Avoid_: False positive (in engineer-facing text), false flag
+
+**Cost ratio**:
+How many False alarms one Missed failure is worth. An assumption set by maintenance management, not measured from the data.
+_Avoid_: Cost weight, penalty
+
+**Operating threshold**:
+The Failure risk at or above which a Reading is Flagged, chosen to minimise expected cost at the Cost ratio. Specific to each model.
+_Avoid_: Cutoff, decision boundary, probability threshold
+
+**Risk band**:
+One of three named ranges of Failure risk: Low (not Flagged), Elevated (Flagged, but not at the lower Cost ratio considered), High (Flagged under every Cost ratio considered).
+_Avoid_: Risk level, tier, severity, category
+
+**Risk floor**:
+The lowest Failure risk shown as a number; anything below is shown as "under" the floor, because the models cannot resolve very small risks.
+_Avoid_: Minimum probability, zero risk

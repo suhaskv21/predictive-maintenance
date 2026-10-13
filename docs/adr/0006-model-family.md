@@ -138,7 +138,7 @@ breaks the engineered features built from it, so this ranks inputs, not mechanis
 regression is readable, but 0.37 PR-AUC lower, which is too weak to prioritise maintenance.
 
 ## Decision
-Proposed:
+Accepted:
 - **Default model: random forest, unweighted** (`RandomForestClassifier`, 300 trees, scikit-learn
   defaults otherwise, `random_state` from the config seed), inside the single serialized `Pipeline`
   after the ADR 0004 feature transformer and an array-conversion step (LightGBM and XGBoost reject
