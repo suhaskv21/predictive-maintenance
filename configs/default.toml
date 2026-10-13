@@ -79,3 +79,15 @@ example_failures = 3
 accepted_thresholds = { random_forest_unweighted = 0.218 }
 threshold_tolerance = 0.0005
 site_budget_mb = 100
+
+# Plausibility of the six inputs at assessment time (ADR 0013, Proposed). Only physically impossible values
+# are treated as absent (reason "out of range") and the Reading is refused; a value inside these
+# ranges but outside the training data's range is still scored. `min` is inclusive, `above` is
+# exclusive. Units: K, rpm, Nm, min.
+[plausibility]
+air_temperature = { min = 200, max = 400 }
+process_temperature = { min = 200, max = 450 }
+rotational_speed = { above = 0, max = 10000 }
+torque = { min = 0, max = 500 }
+tool_wear = { min = 0, max = 1000 }
+types = ["L", "M", "H"]

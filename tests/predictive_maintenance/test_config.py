@@ -9,8 +9,10 @@ from predictive_maintenance.config import (
     DeployConfig,
     EvaluationConfig,
     FailureModesConfig,
+    InputRange,
     MissingDataConfig,
     PipelineHealthConfig,
+    PlausibilityConfig,
     SplitConfig,
     ThresholdConfig,
     load_config,
@@ -62,6 +64,14 @@ example_failures = 2
 accepted_thresholds = { forest = 0.25 }
 threshold_tolerance = 0.001
 site_budget_mb = 50
+
+[plausibility]
+air_temperature = { min = 250, max = 350 }
+process_temperature = { min = 260, max = 360 }
+rotational_speed = { above = 0, max = 5000 }
+torque = { min = 0, max = 100 }
+tool_wear = { min = 0, max = 500 }
+types = ["L", "H"]
 """
 
 
@@ -111,6 +121,16 @@ def test_load_config_reads_seed_and_split_from_the_given_file(tmp_path: Path) ->
         app=AppConfig(example_count=6, example_failures=2),
         deploy=DeployConfig(
             accepted_thresholds={"forest": 0.25}, threshold_tolerance=0.001, site_budget_mb=50.0
+        ),
+        plausibility=PlausibilityConfig(
+            ranges={
+                "Air temperature [K]": InputRange(250, 350),
+                "Process temperature [K]": InputRange(260, 360),
+                "Rotational speed [rpm]": InputRange(0, 5000, low_inclusive=False),
+                "Torque [Nm]": InputRange(0, 100),
+                "Tool wear [min]": InputRange(0, 500),
+            },
+            types=("L", "H"),
         ),
     )
 
@@ -344,3 +364,67 @@ def test_load_config_rejects_invalid_cv_counts(tmp_path: Path, setting: str, bad
     text = VALID.replace(f"{setting} = {4 if setting == 'cv_folds' else 2}", f"{setting} = {bad}")
     with pytest.raises(ValueError, match=setting):
         load_config(write(tmp_path, text))
+
+
+def test_default_config_holds_the_plausibility_ranges_proposed_in_adr_0013() -> None:
+    assert load_config().plausibility == PlausibilityConfig(
+        ranges={
+            "Air temperature [K]": InputRange(200, 400),
+            "Process temperature [K]": InputRange(200, 450),
+            "Rotational speed [rpm]": InputRange(0, 10_000, low_inclusive=False),
+            "Torque [Nm]": InputRange(0, 500),
+            "Tool wear [min]": InputRange(0, 1_000),
+        },
+        types=("L", "M", "H"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "inside"), [(0, True), (-0.1, False), (100, True), (100.1, False)]
+)
+def test_an_inclusive_range_contains_both_of_its_limits(value: float, inside: bool) -> None:
+    assert InputRange(0, 100).contains(value) is inside
+
+
+@pytest.mark.parametrize(
+    ("value", "inside"), [(0, False), (1e-9, True), (100, True), (100.1, False)]
+)
+def test_a_range_above_zero_excludes_zero(value: float, inside: bool) -> None:
+    assert InputRange(0, 100, low_inclusive=False).contains(value) is inside
+
+
+@pytest.mark.parametrize(
+    ("bad_line", "name"),
+    [
+        ("air_temperature = { min = 250 }", "air_temperature"),
+        ("air_temperature = { max = 350 }", "air_temperature"),
+        ("air_temperature = { min = 250, above = 240, max = 350 }", "air_temperature"),
+        ("air_temperature = { min = 350, max = 250 }", "air_temperature"),
+        ('air_temperature = { min = "a", max = 350 }', "air_temperature"),
+        ("air_temperature = { min = true, max = 350 }", "air_temperature"),
+        ("air_temperature = 300", "air_temperature"),
+        ("torque = { min = 0, max = inf }", "torque"),
+        ("types = []", "types"),
+        ('types = ["L", "L"]', "types"),
+        ('types = ["L", "X"]', "types"),
+        ("types = [1]", "types"),
+    ],
+)
+def test_load_config_rejects_invalid_plausibility_settings(
+    tmp_path: Path, bad_line: str, name: str
+) -> None:
+    lines = [bad_line if line.startswith(name) else line for line in VALID.splitlines()]
+    with pytest.raises(ValueError, match=name):
+        load_config(write(tmp_path, "\n".join(lines)))
+
+
+def test_load_config_rejects_a_file_without_a_plausibility_table(tmp_path: Path) -> None:
+    text = VALID.split("[plausibility]")[0]
+    with pytest.raises(ValueError, match=r"\[plausibility\]"):
+        load_config(write(tmp_path, text))
+
+
+def test_load_config_rejects_a_plausibility_table_missing_an_input(tmp_path: Path) -> None:
+    lines = [line for line in VALID.splitlines() if not line.startswith("torque")]
+    with pytest.raises(ValueError, match="torque"):
+        load_config(write(tmp_path, "\n".join(lines)))

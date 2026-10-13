@@ -1,12 +1,24 @@
 """Run configuration from ``configs/default.toml``: the single source of seed and run settings."""
 
+import math
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from predictive_maintenance.data import schema
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "default.toml"
+
+# [plausibility] key -> the numeric input (dataset column) it bounds.
+_PLAUSIBILITY_INPUTS = dict(
+    zip(
+        ("air_temperature", "process_temperature", "rotational_speed", "torque", "tool_wear"),
+        schema.NUMERIC_FEATURES,
+        strict=True,
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -128,6 +140,36 @@ class DeployConfig:
 
 
 @dataclass(frozen=True)
+class InputRange:
+    """The physically possible values of one numeric input: ``low`` to ``high`` inclusive.
+
+    ``low_inclusive`` is False for an input that must be strictly above ``low`` (rotational speed).
+    """
+
+    low: float
+    high: float
+    low_inclusive: bool = True
+
+    def contains(self, value: float) -> bool:
+        """Whether ``value`` lies inside the range."""
+        above = value >= self.low if self.low_inclusive else value > self.low
+        return above and value <= self.high
+
+
+@dataclass(frozen=True)
+class PlausibilityConfig:
+    """Which input values are physically possible (ADR 0013); any other value is treated as absent.
+
+    ``ranges`` maps each numeric input (by its dataset column name) to its valid range and
+    ``types`` lists the valid product Types. Values inside these but outside the training data's
+    range are still scored.
+    """
+
+    ranges: Mapping[str, InputRange]
+    types: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Config:
     """Run configuration. All randomness in the project is seeded from ``seed``."""
 
@@ -140,6 +182,7 @@ class Config:
     failure_modes: FailureModesConfig
     app: AppConfig
     deploy: DeployConfig
+    plausibility: PlausibilityConfig
 
 
 def _positive(value: object, name: str, where: str) -> float:
@@ -323,13 +366,59 @@ def _deploy(raw: dict[str, object], path: Path) -> DeployConfig:
     )
 
 
+def _bound(table: dict[str, object], name: str, where: str) -> float:
+    value = table.get(name)
+    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        raise ValueError(f"{where}: {name!r} must be a finite number, got {value!r}")
+    return float(value)
+
+
+def _input_range(table: dict[str, object], key: str, path: Path) -> InputRange:
+    where = f"{path} [plausibility] {key}"
+    entry = table.get(key)
+    if not isinstance(entry, dict):
+        raise ValueError(f"{where}: a table with 'min' (or 'above') and 'max' is required")
+    if ("min" in entry) == ("above" in entry):
+        raise ValueError(f"{where}: give exactly one of 'min' (inclusive) or 'above' (exclusive)")
+    low_name = "min" if "min" in entry else "above"
+    low = _bound(entry, low_name, where)
+    high = _bound(entry, "max", where)
+    if low >= high:
+        raise ValueError(f"{where}: {low_name!r} must be below 'max', got {low} and {high}")
+    return InputRange(low, high, low_inclusive=low_name == "min")
+
+
+def _plausibility(raw: dict[str, object], path: Path) -> PlausibilityConfig:
+    table = raw.get("plausibility")
+    if not isinstance(table, dict):
+        raise ValueError(f"{path}: a [plausibility] table is required")
+    where = f"{path} [plausibility]"
+    types = table.get("types")
+    if (
+        not isinstance(types, list)
+        or not types
+        or len(set(types)) != len(types)
+        or any(t not in schema.TYPE_LEVELS for t in types)
+    ):
+        raise ValueError(
+            f"{where}: 'types' must be distinct values from {list(schema.TYPE_LEVELS)}, "
+            f"got {types!r}"
+        )
+    return PlausibilityConfig(
+        ranges={
+            column: _input_range(table, key, path) for key, column in _PLAUSIBILITY_INPUTS.items()
+        },
+        types=tuple(types),
+    )
+
+
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
     """Load the run configuration from a TOML file.
 
     Raises:
         ValueError: if ``seed`` or the ``[split]``, ``[threshold]``, ``[evaluation]``,
-            ``[missing_data]``, ``[pipeline_health]``, ``[failure_modes]``, ``[app]`` or
-            ``[deploy]`` tables and their settings are absent or invalid.
+            ``[missing_data]``, ``[pipeline_health]``, ``[failure_modes]``, ``[app]``,
+            ``[deploy]`` or ``[plausibility]`` tables and their settings are absent or invalid.
     """
     with path.open("rb") as handle:
         raw = tomllib.load(handle)
@@ -358,4 +447,5 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
         failure_modes=_failure_modes(raw, path),
         app=_app(raw, path),
         deploy=_deploy(raw, path),
+        plausibility=_plausibility(raw, path),
     )

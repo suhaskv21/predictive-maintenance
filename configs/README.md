@@ -53,6 +53,21 @@ added when the ADRs that decide them are accepted.
   - `threshold_tolerance`: largest allowed difference, compared after rounding the re-derived
     threshold to 3 places (the precision the ADR quotes).
   - `site_budget_mb`: largest exported site, in MB, the build accepts.
+- `[plausibility]` (ADR 0013, Proposed): which input values are physically possible at assessment time. Only
+  impossible values are treated as absent (reason "out of range"), and the Reading is refused. A
+  value inside these ranges but outside the training data's range is still scored. Each numeric
+  input is a table with `max` and either `min` (inclusive) or `above` (exclusive):
+
+  | Key | Input | Valid range |
+  |---|---|---|
+  | `air_temperature` | Air temperature [K] | 200 to 400 |
+  | `process_temperature` | Process temperature [K] | 200 to 450 |
+  | `rotational_speed` | Rotational speed [rpm] | above 0 to 10,000 |
+  | `torque` | Torque [Nm] | 0 to 500 |
+  | `tool_wear` | Tool wear [min] | 0 to 1,000 |
+
+  `types` lists the valid product Types (`L`, `M`, `H`; any of the dataset's Types). Anything else
+  is "out of range". Absent, not a number and not finite values are refused whatever the ranges.
 
 ## What a cost ratio means
 

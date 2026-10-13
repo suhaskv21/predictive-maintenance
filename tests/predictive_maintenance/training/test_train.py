@@ -75,6 +75,7 @@ def config(*, accepted: float = 0.5, tolerance: float = 1.0) -> Config:
             threshold_tolerance=tolerance,
             site_budget_mb=100.0,
         ),
+        plausibility=real.plausibility,
     )
 
 
