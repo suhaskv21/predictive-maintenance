@@ -141,11 +141,25 @@ def _(BUILD_COMMIT, inputs, mo, presentation, scoring_banner):
                                     presentation.failure_risk,
                                     presentation.flag_line,
                                     presentation.flag_line_note,
+                                    presentation.range_note,
                                 ]
                             ),
                             _lines(presentation.meaning),
                             _lines(presentation.refusal),
                             _lines([presentation.outcome_line]),
+                            *(
+                                [
+                                    mo.accordion(
+                                        {
+                                            presentation.sensitivity_title: _lines(
+                                                presentation.sensitivity_lines()
+                                            )
+                                        }
+                                    )
+                                ]
+                                if presentation.sensitivity
+                                else []
+                            ),
                         ]
                     ),
                 ],

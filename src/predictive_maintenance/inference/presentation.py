@@ -29,6 +29,10 @@ FIGURE_SOURCES = {
     "holdout": "held-out test data",
 }
 MODEL_NAMES = {"random_forest_unweighted": "Random forest (unweighted)"}
+# Cost ratios whose best Flag line a model does not pin down (ADR 0007: a non-flat optimum), so
+# their sensitivity row is marked.
+NOT_PRECISE = {"random_forest_unweighted": (20.0,)}
+NOT_PRECISE_NOTE = "not precise"
 
 # Names of phrases that overstate certainty, with the pattern that finds each. "0 %" and "100 %"
 # must not match inside "10 %" or "100 of every 1,000". "no risk" skips the mandated sentence "No
@@ -64,11 +68,26 @@ GOLDEN_WITHHELD = "details withheld"
 GOLDEN_SHOWN = 3  # differences quoted in the banner; the rest are counted
 FLAG_LINE_NOTE = "A risk within a percent of this line can go either way."
 OUTCOME_SUFFIX = "This Reading was in the training data, so agreement proves nothing."
+RANGE_NOTE = "outside the range of the training data, treat the result as unreliable."
+SENSITIVITY_TITLE = "How the Flag changes with the cost assumption"
+UNAVAILABLE_FIGURES = "figures not available"
 
 
 def banned_wording_in(text: str) -> list[str]:
     """The names of the banned phrases found in ``text`` (empty if it is clean)."""
     return [name for name, pattern in BANNED_WORDING if pattern.search(text)]
+
+
+@dataclass(frozen=True)
+class SensitivityRow:
+    """The Flag's behaviour at one Cost ratio, in words (metrics only, never a threshold).
+
+    ``note`` is "not precise" where the model's best Flag line at that ratio is not pinned down.
+    """
+
+    ratio: str
+    text: str
+    note: str | None
 
 
 @dataclass(frozen=True)
@@ -89,14 +108,30 @@ class Presentation:
     outcome_line: str | None
     model_line: str
     caveats: tuple[str, ...]
+    range_note: str | None = None
+    sensitivity_title: str | None = None
+    sensitivity_intro: str | None = None
+    sensitivity: tuple[SensitivityRow, ...] = ()
+    sensitivity_source: str | None = None
+
+    def sensitivity_lines(self) -> tuple[str, ...]:
+        """The strings inside the sensitivity expander, in display order (empty if none)."""
+        if not self.sensitivity:
+            return ()
+        return (
+            *((self.sensitivity_intro,) if self.sensitivity_intro else ()),
+            *(row.text for row in self.sensitivity),
+            *((self.sensitivity_source,) if self.sensitivity_source else ()),
+        )
 
     def lines(self) -> tuple[str, ...]:
         """Every string of the state, in display order."""
-        risk = (self.failure_risk, self.flag_line, self.flag_line_note)
+        risk = (self.failure_risk, self.flag_line, self.flag_line_note, self.range_note)
         return (
             self.headline,
             *(line for line in risk if line),
             *self.meaning,
+            *self.sensitivity_lines(),
             *self.refusal,
             *((self.outcome_line,) if self.outcome_line else ()),
             self.model_line,
@@ -161,21 +196,35 @@ def _caveats(cost_ratio: float) -> tuple[str, ...]:
     )
 
 
-def _meaning(metrics: Mapping[str, Any], ratio: float, flagged: bool) -> tuple[str, ...]:
+def _source_text(metrics: Mapping[str, Any]) -> str:
     source = FIGURE_SOURCES.get(metrics.get("source", ""))
     if source is None:
         raise ValueError(f"unknown figure source {metrics.get('source')!r} in operating-metrics")
-    figures = metrics["ratios"][ratio_key(ratio)]
+    return source
+
+
+def _rounded(figures: Mapping[str, Any]) -> tuple[int, int, int] | None:
+    """Recall and precision as whole percents and Flags per 1,000, or None if any is undefined."""
     recall, precision, per_1000 = (
         figures.get("recall"),
         figures.get("precision"),
         figures.get("flags_per_1000"),
     )
     if recall is None or precision is None or per_1000 is None:
+        return None
+    return (
+        min(max(_percent(recall), 0), 100),
+        min(max(_percent(precision), 0), 100),
+        _half_up(Decimal(repr(per_1000))),
+    )
+
+
+def _meaning(metrics: Mapping[str, Any], ratio: float, flagged: bool) -> tuple[str, ...]:
+    source = _source_text(metrics)
+    rounded = _rounded(metrics["ratios"][ratio_key(ratio)])
+    if rounded is None:
         return ("What a Flag means is not available for this model.",)
-    caught = min(max(_percent(recall), 0), 100)
-    real = min(max(_percent(precision), 0), 100)
-    flags = _half_up(Decimal(repr(per_1000)))
+    caught, real, flags = rounded
     follow_up = (
         f"{_sentence(_count(100 - real))} of every 100 Flags are false alarms, so some "
         "inspections will find nothing."
@@ -190,6 +239,51 @@ def _meaning(metrics: Mapping[str, Any], ratio: float, flagged: bool) -> tuple[s
         follow_up,
         f"Figures from {source}.",
     )
+
+
+def _sensitivity_row(model: str, ratio: float, figures: Mapping[str, Any]) -> SensitivityRow:
+    label = f"{ratio:g}:1"
+    note = NOT_PRECISE_NOTE if ratio in NOT_PRECISE.get(model, ()) else None
+    rounded = _rounded(figures)
+    if rounded is None:
+        text = f"{label}: {UNAVAILABLE_FIGURES}."
+    else:
+        caught, real, flags = rounded
+        text = (
+            f"{label}: of every 100 failures, {_count(caught)} are flagged; "
+            f"of every 100 Flags, {_count(real)} are real; "
+            f"{_count(flags, 1000)} of every 1,000 Readings are flagged."
+        )
+    return SensitivityRow(label, f"{text} ({note})" if note else text, note)
+
+
+def _sensitivity(model: str, metrics: Mapping[str, Any], cost_ratio: float) -> dict[str, Any]:
+    """The expander's fields: one row per stored Cost ratio, from the cross-validation figures.
+
+    Once the Holdout is applied the top-level ratios hold only the default one, and the full set
+    sits under ``sensitivity``.
+    """
+    stored = metrics.get("sensitivity", metrics)
+    source = _source_text(stored)
+    rows = tuple(
+        _sensitivity_row(model, ratio, figures)
+        for ratio, figures in sorted((float(key), value) for key, value in stored["ratios"].items())
+    )
+    return {
+        "sensitivity_title": SENSITIVITY_TITLE,
+        "sensitivity_intro": (
+            f"For information only: the Flag above always uses {cost_ratio:g}:1, and this "
+            "cannot be changed here."
+        ),
+        "sensitivity": rows,
+        "sensitivity_source": f"Figures from {source}.",
+    }
+
+
+def _range_note(assessment: Assessment) -> str | None:
+    if not assessment.outside_training:
+        return None
+    return f"{', '.join(assessment.outside_training)}: {RANGE_NOTE}"
 
 
 def example_outcome_line(machine_failure: bool) -> str:
@@ -251,6 +345,8 @@ def present(
         outcome_line=None if recorded_outcome is None else example_outcome_line(recorded_outcome),
         model_line=model_line,
         caveats=caveats,
+        range_note=_range_note(assessment),
+        **_sensitivity(operating_point.model, operating_metrics, cost_ratio),
     )
 
 

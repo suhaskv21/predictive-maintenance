@@ -42,7 +42,9 @@ class Assessment:
 
     ``status`` is ``complete`` (``failure_risk`` is the unrounded score and ``flag`` the call at the
     Operating threshold) or ``refused`` (``missing``, ``refusal_reason`` and ``recoverable`` are
-    set, and ``failure_risk`` and ``flag`` are None).
+    set, and ``failure_risk`` and ``flag`` are None). ``outside_training`` names the numeric inputs
+    of a complete Reading that are plausible but beyond the training data's min/max; such a Reading
+    is still scored.
     """
 
     status: Literal["complete", "refused"]
@@ -51,6 +53,7 @@ class Assessment:
     recoverable: bool
     failure_risk: float | None
     flag: bool | None
+    outside_training: tuple[str, ...] = ()
 
 
 def _is_blank(value: object) -> bool:
@@ -98,6 +101,19 @@ def _missing_inputs(
     )
 
 
+def _outside_training(unit: LoadedUnit, reading: Mapping[str, object]) -> tuple[str, ...]:
+    ranges = unit.operating_metrics.get("training_ranges")
+    if not isinstance(ranges, Mapping):
+        raise ValueError("operating-metrics has no training_ranges")
+    return tuple(
+        name
+        for name in schema.NUMERIC_FEATURES
+        if not ranges[name]["min"]
+        <= float(cast(SupportsFloat, reading[name]))
+        <= ranges[name]["max"]
+    )
+
+
 def assess(
     unit: LoadedUnit, reading: Mapping[str, object], plausibility: PlausibilityConfig
 ) -> Assessment:
@@ -133,4 +149,5 @@ def assess(
         recoverable=False,
         failure_risk=score,
         flag=score >= unit.operating_point.threshold,
+        outside_training=_outside_training(unit, reading),
     )

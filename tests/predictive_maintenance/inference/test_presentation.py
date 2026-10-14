@@ -349,3 +349,154 @@ def test_a_difference_with_banned_wording_is_not_shown() -> None:
 def test_the_banner_never_ends_in_a_doubled_full_stop() -> None:
     banner = golden_banner(GoldenResult(differences=("cannot be read: KeyError('golden').",)))
     assert banner is not None and not banner.endswith("..")
+
+
+# --- outside the training range ------------------------------------------------------------------
+
+RANGE_PHRASE = "outside the range of the training data, treat the result as unreliable"
+
+
+def test_a_reading_inside_the_training_range_carries_no_note() -> None:
+    shown = show(assessment(0.4, True))
+    assert shown.range_note is None
+    assert RANGE_PHRASE not in "\n".join(shown.lines())
+
+
+def test_a_reading_outside_the_training_range_is_still_scored_and_carries_the_note() -> None:
+    outside = Assessment("complete", (), None, False, 0.4, True, outside_training=("Torque [Nm]",))
+    shown = show(outside)
+    assert shown.state == "inspect"
+    assert shown.failure_risk == "Failure risk (rough estimate, not calibrated): about 40 %"
+    assert shown.range_note == f"Torque [Nm]: {RANGE_PHRASE}."
+    assert shown.range_note in shown.lines()
+
+
+def test_the_note_names_every_input_outside_the_training_range() -> None:
+    outside = Assessment(
+        "complete",
+        (),
+        None,
+        False,
+        0.03,
+        False,
+        outside_training=("Torque [Nm]", "Tool wear [min]"),
+    )
+    assert show(outside).range_note == f"Torque [Nm], Tool wear [min]: {RANGE_PHRASE}."
+
+
+def test_a_refused_reading_has_no_range_note() -> None:
+    assert show(REFUSED).range_note is None
+
+
+def test_the_range_note_passes_the_banned_wording_test() -> None:
+    outside = Assessment("complete", (), None, False, 0.4, True, outside_training=("Torque [Nm]",))
+    assert banned_wording_in("\n".join(show(outside).lines())) == []
+
+
+# --- sensitivity expander ------------------------------------------------------------------------
+
+SENSITIVITY_METRICS: dict[str, Any] = {
+    "model": MODEL,
+    "source": "cv_train",
+    "ratios": {
+        "5.0": {"recall": 0.7, "precision": 0.9, "flags_per_1000": 26.4},
+        "10.0": FIGURES,
+        "20.0": {"recall": 0.9234, "precision": 0.5, "flags_per_1000": 62.5},
+    },
+}
+
+
+def sensitivity(metrics: dict[str, Any] = SENSITIVITY_METRICS, model: str = MODEL) -> Presentation:
+    point = OperatingPoint(model, COST_RATIO, {5.0: 0.3, 10.0: 0.2183, 20.0: 0.15}, None, FLOOR)
+    return present(assessment(0.4, True), point, metrics, cost_ratio=COST_RATIO)
+
+
+def test_the_expander_has_one_row_per_cost_ratio_in_ascending_order() -> None:
+    rows = sensitivity().sensitivity
+    assert [row.ratio for row in rows] == ["5:1", "10:1", "20:1"]
+
+
+def test_each_row_gives_recall_precision_and_flags_per_1000() -> None:
+    first, _, last = sensitivity().sensitivity
+    assert first.text == (
+        "5:1: of every 100 failures, about 70 are flagged; of every 100 Flags, about 90 are real; "
+        "about 26 of every 1,000 Readings are flagged."
+    )
+    assert "about 92 are flagged" in last.text
+    assert "about 63 of every 1,000" in last.text  # 62.5 rounds half up
+
+
+def test_the_forests_20_to_1_row_is_marked_not_precise_and_no_other_is() -> None:
+    marked = {row.ratio: row.note for row in sensitivity().sensitivity}
+    assert marked == {"5:1": None, "10:1": None, "20:1": "not precise"}
+    assert sensitivity().sensitivity[2].text.endswith("(not precise)")
+
+
+def test_another_models_20_to_1_row_is_not_marked() -> None:
+    other = OperatingPoint("other", COST_RATIO, {5.0: 0.3, 10.0: 0.2183, 20.0: 0.15}, None, FLOOR)
+    shown = present(assessment(0.4, True), other, SENSITIVITY_METRICS, cost_ratio=COST_RATIO)
+    assert all(row.note is None for row in shown.sensitivity)
+
+
+def test_the_expander_shows_metrics_only_and_no_thresholds() -> None:
+    text = "\n".join(sensitivity().sensitivity_lines())
+    assert "flags from" not in text
+    for threshold in ("30", "22", "15"):
+        assert f"about {threshold} %" not in text
+    assert "%" not in text
+
+
+def test_the_expander_says_the_flag_above_stays_at_the_configured_ratio() -> None:
+    intro = sensitivity().sensitivity_lines()[0]
+    assert "10:1" in intro
+    assert "information only" in intro.lower()
+
+
+def test_the_expander_follows_the_stored_figures_after_the_holdout_is_applied() -> None:
+    holdout = {
+        "model": MODEL,
+        "source": "holdout",
+        "ratios": {"10.0": {**FIGURES, "recall": 0.5}},
+        "sensitivity": {"source": "cv_train", "ratios": SENSITIVITY_METRICS["ratios"]},
+    }
+    shown = sensitivity(holdout)
+    assert [row.ratio for row in shown.sensitivity] == ["5:1", "10:1", "20:1"]
+    assert "about 86 are flagged" in shown.sensitivity[1].text  # the CV figure, not the Holdout's
+    assert "cross-validation on the training data" in "\n".join(shown.sensitivity_lines())
+
+
+def test_undefined_figures_in_a_row_say_so() -> None:
+    undefined = {
+        **SENSITIVITY_METRICS,
+        "ratios": {
+            **SENSITIVITY_METRICS["ratios"],
+            "5.0": {"recall": None, "precision": None, "flags_per_1000": None},
+        },
+    }
+    assert "not available" in sensitivity(undefined).sensitivity[0].text
+
+
+def test_a_refused_reading_has_no_expander() -> None:
+    shown = show(REFUSED)
+    assert shown.sensitivity == ()
+    assert shown.sensitivity_title is None
+    assert shown.sensitivity_lines() == ()
+
+
+def test_the_expander_text_is_part_of_the_banned_wording_scan() -> None:
+    text = "\n".join(sensitivity().lines())
+    assert "5:1" in text and "not precise" in text
+    assert banned_wording_in(text) == []
+
+
+def test_extreme_row_figures_never_read_as_certainty() -> None:
+    extreme = {
+        **SENSITIVITY_METRICS,
+        "ratios": {
+            "10.0": FIGURES,
+            "20.0": {"recall": 1.0, "precision": 1.0, "flags_per_1000": 0.0},
+        },
+    }
+    row = sensitivity(extreme).sensitivity[-1]
+    assert "more than 99 are flagged" in row.text and "fewer than 1 of every 1,000" in row.text
+    assert banned_wording_in(row.text) == []

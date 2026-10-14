@@ -297,3 +297,60 @@ def test_the_ranges_come_from_the_configuration_not_from_code(unit: LoadedUnit) 
         },
     )
     assert assess(unit, READING, narrow).missing == (MissingInput(TORQUE, OUT_OF_RANGE),)
+
+
+# --- outside the training range -------------------------------------------------------------------
+
+
+def training_range(unit: LoadedUnit, name: str) -> dict[str, float]:
+    return dict(unit.operating_metrics["training_ranges"][name])
+
+
+def test_a_reading_inside_the_training_ranges_has_nothing_outside(unit: LoadedUnit) -> None:
+    assert assess(unit, READING, PLAUSIBILITY).outside_training == ()
+
+
+@pytest.mark.parametrize("name", schema.NUMERIC_FEATURES)
+@pytest.mark.parametrize("edge", ["min", "max"])
+def test_a_value_on_the_training_limit_is_inside(unit: LoadedUnit, name: str, edge: str) -> None:
+    limit = training_range(unit, name)[edge]
+    assert assess(unit, with_(**{name: limit}), PLAUSIBILITY).outside_training == ()
+
+
+BEYOND = [  # tool wear starts at the plausible minimum of 0, so only its upper side is testable
+    (name, edge, step)
+    for name in schema.NUMERIC_FEATURES
+    for edge, step in (("min", -0.5), ("max", 0.5))
+    if (name, edge) != (WEAR, "min")
+]
+
+
+@pytest.mark.parametrize(("name", "edge", "step"), BEYOND)
+def test_a_plausible_value_beyond_the_training_range_is_scored_and_named(
+    unit: LoadedUnit, name: str, edge: str, step: float
+) -> None:
+    value = training_range(unit, name)[edge] + step
+    result = assess(unit, with_(**{name: value}), PLAUSIBILITY)
+    assert result.status == "complete" and result.failure_risk == 0.3 and result.flag
+    assert result.outside_training == (name,)
+
+
+def test_every_input_outside_the_training_range_is_listed_in_input_order(
+    unit: LoadedUnit,
+) -> None:
+    far = {name: training_range(unit, name)["max"] + 1 for name in (WEAR, AIR)}
+    assert assess(unit, with_(**far), PLAUSIBILITY).outside_training == (AIR, WEAR)
+
+
+def test_an_implausible_value_is_refused_not_noted_as_outside_the_training_range(
+    unit: LoadedUnit,
+) -> None:
+    result = assess(unit, with_(**{TORQUE: 900}), PLAUSIBILITY)
+    assert result.status == "refused" and result.outside_training == ()
+
+
+def test_operating_metrics_without_training_ranges_are_refused(unit: LoadedUnit) -> None:
+    metrics = {k: v for k, v in unit.operating_metrics.items() if k != "training_ranges"}
+    broken = dataclasses.replace(unit, operating_metrics=metrics)
+    with pytest.raises(ValueError, match="training_ranges"):
+        assess(broken, READING, PLAUSIBILITY)

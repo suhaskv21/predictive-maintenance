@@ -53,14 +53,14 @@ def load_app() -> ModuleType:
     return module
 
 
-def write_constant_unit(models_dir: Path, *, threshold: float) -> None:
+def write_constant_unit(models_dir: Path, *, threshold: float, centre: float = 100) -> None:
     """A unit whose Pipeline scores every Reading 0.3, so the Flag depends on ``threshold`` only."""
     rng = np.random.default_rng(1)
     n = 1000
     frame = pl.DataFrame(
         {
             schema.CATEGORICAL_FEATURE: rng.choice(list(schema.TYPE_LEVELS), n),
-            **{name: rng.normal(100, 10, n) for name in schema.NUMERIC_FEATURES},
+            **{name: rng.normal(centre, 10, n) for name in schema.NUMERIC_FEATURES},
         }
     )
     y = np.array([1] * 300 + [0] * 700)
@@ -167,6 +167,44 @@ def test_a_stored_score_that_differs_shows_the_scoring_check_banner(flagging_dir
     assert "Scoring check failed" in html
     assert "Reading 1: stored score 0.9" in html
     assert presentation.state == "inspect"
+
+
+RANGE_PHRASE = "outside the range of the training data, treat the result as unreliable"
+SENSITIVITY_TITLE = "How the Flag changes with the cost assumption"
+
+
+def test_a_plausible_reading_outside_the_training_data_shows_the_note_and_is_scored(
+    flagging_dir: Path,
+) -> None:
+    html, presentation = run(flagging_dir, READING)
+    assert presentation.state == "inspect"
+    assert RANGE_PHRASE in html
+
+
+def test_a_reading_inside_the_training_data_shows_no_note(tmp_path: Path) -> None:
+    write_constant_unit(tmp_path, threshold=0.2, centre=300)
+    html, presentation = run(
+        tmp_path, {**READING, **{name: 300 for name in schema.NUMERIC_FEATURES}}
+    )
+    assert presentation.state == "inspect"
+    assert RANGE_PHRASE not in html
+
+
+def test_a_result_shows_the_sensitivity_expander_with_each_cost_ratio(flagging_dir: Path) -> None:
+    html, presentation = run(flagging_dir, READING)
+    assert SENSITIVITY_TITLE in html
+    for row in presentation.sensitivity:
+        assert row.text.split(":")[0] in html
+    assert [row.ratio for row in presentation.sensitivity] == ["5:1", "10:1"]
+
+
+def test_a_refused_reading_and_an_error_state_show_no_expander(
+    flagging_dir: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    refused, _ = run(flagging_dir, {**READING, TORQUE: None})
+    unavailable, _ = run(tmp_path_factory.mktemp("empty"), READING)
+    assert SENSITIVITY_TITLE not in refused
+    assert SENSITIVITY_TITLE not in unavailable
 
 
 def test_the_notebook_imports_only_the_inference_layer_and_its_config() -> None:
