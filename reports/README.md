@@ -12,3 +12,7 @@ Committed results (unlike `models/`, which is git-ignored). `figures/` is genera
     the report's hash is not the Pipeline's in `models/`. If builds prove not bit-identical, switch
     that check to a fingerprint (pinned versions, scores on fixed train Readings within 1e-9),
     never to a rescore.
+  - `just holdout-apply` (and the build) runs the same check, then rewrites the unit's
+    `operating-metrics.json`: `source` becomes `holdout`, the default-ratio figures carry their
+    intervals, and the training-time CV figures move to `sensitivity` (labelled `cv_train`). Training
+    writes the CV figures afresh, so the build applies the report after every train.

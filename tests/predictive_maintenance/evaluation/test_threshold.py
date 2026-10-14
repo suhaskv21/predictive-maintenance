@@ -420,9 +420,16 @@ def test_bootstrap_cis_cover_the_estimate_and_freeze_the_threshold() -> None:
         "recall",
         "precision",
         "expected_cost_per_1000",
+        "flags_per_1000",
+        "false_alarms_per_caught",
     ]
     for row in cis.iter_rows(named=True):
         assert row["low"] <= row["estimate"] <= row["high"] or row["metric"] == "precision"
+    at_threshold = operating_metrics(y, scores, 0.5, 10)
+    flags = cis.filter(pl.col("metric") == "flags_per_1000").row(0, named=True)
+    false_alarms = cis.filter(pl.col("metric") == "false_alarms_per_caught").row(0, named=True)
+    assert flags["estimate"] == pytest.approx(at_threshold.alerts_per_1000)
+    assert false_alarms["estimate"] == pytest.approx(at_threshold.false_alarms_per_caught)
     recall = cis.filter(pl.col("metric") == "recall").row(0, named=True)
     assert recall["estimate"] == pytest.approx(operating_metrics(y, scores, 0.5, 10).recall)
 

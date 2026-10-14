@@ -32,6 +32,10 @@ holdout:
 holdout-check:
     uv run python -m predictive_maintenance.evaluation.holdout --check
 
+# After `just train`: check the report, then make operating-metrics quote the Holdout figures.
+holdout-apply:
+    uv run python -m predictive_maintenance.evaluation.holdout --apply
+
 # The one-screen marimo app (ADR 0012) in app mode.
 marimo-app:
     uv run marimo run marimo_app.py

@@ -596,6 +596,10 @@ def bootstrap_metric_cis(
             "recall": caught / sub_y.sum(),
             "precision": caught / flagged.sum() if flagged.any() else math.nan,
             "expected_cost_per_1000": 1000 * expected_cost(sub_y, flagged, cost_ratio),
+            "flags_per_1000": 1000 * float(flagged.mean()),
+            "false_alarms_per_caught": (
+                int(np.sum(~sub_y & flagged)) / caught if caught else math.nan
+            ),
         }
 
     estimate = measure(np.arange(labels.size))

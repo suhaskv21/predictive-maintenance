@@ -48,6 +48,16 @@ jobs:
           uv run python -m predictive_maintenance.training.train
           echo "- Training step: $(( $(date +%s) - start )) s" >> "$GITHUB_STEP_SUMMARY"
 
+      # The committed Holdout report must belong to the Pipeline just trained (ADR 0012). A
+      # mismatch fails with "holdout figures belong to a different model"; nothing is rescored.
+      # If builds ever stop being bit-identical, switch the check to a fingerprint (documented in
+      # evaluation/holdout.py), never to a rescore.
+      - name: Holdout report belongs to this Pipeline
+        run: uv run python -m predictive_maintenance.evaluation.holdout --check
+
+      - name: Quote the Holdout figures in the unit's operating-metrics
+        run: uv run python -m predictive_maintenance.evaluation.holdout --apply
+
       - name: Build the wheel
         run: uv build --wheel
 

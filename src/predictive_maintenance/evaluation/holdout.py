@@ -13,6 +13,10 @@ The Holdout is for one look only. If a report exists the command refuses to resc
 If builds turn out not to be bit-identical, replace the hash comparison in ``check_report`` with a
 fingerprint (pinned library versions, and scores on the fixed train Readings of the manifest equal
 within 1e-9). That is a fallback for the check only, never a reason to rescore.
+
+``apply_report`` puts the report's figures into the unit's operating-metrics, labelled ``holdout``
+and with their intervals, and keeps the CV figures only under ``sensitivity``. Builds call it after
+training, because training writes the CV figures afresh each time.
 """
 
 import argparse
@@ -38,10 +42,13 @@ from predictive_maintenance.evaluation.threshold import (
     bootstrap_metric_cis,
 )
 from predictive_maintenance.training.train import DEFAULT_MODEL, MODELS_DIR
-from predictive_maintenance.training.unit import file_sha256, unit_paths
+from predictive_maintenance.training.unit import file_sha256, ratio_key, unit_paths
 
 REPORTS_DIR = PROJECT_ROOT / "reports"
 REPORT_NAME = "holdout-metrics.json"
+HOLDOUT_LABEL = "holdout"
+# The figures the Flag meaning quotes, as named in the report and in the operating-metrics file.
+QUOTED_FIGURES = ("recall", "precision", "flags_per_1000", "false_alarms_per_caught")
 
 
 class HoldoutAlreadyScoredError(RuntimeError):
@@ -130,10 +137,57 @@ def check_report(report: Path, pipeline: Path) -> None:
         raise HoldoutMismatchError("holdout figures belong to a different model")
 
 
+def apply_report(report: Path, models_dir: Path, *, model: str = DEFAULT_MODEL) -> None:
+    """Make the unit's operating-metrics quote the Holdout figures of ``report``.
+
+    The file then has ``source`` ``holdout``, the figures of the default Cost ratio with their
+    intervals, and the training-time CV figures under ``sensitivity`` (labelled ``cv_train``). The
+    manifest's hash of the file is updated; the Pipeline is not touched. Nothing is rescored, and
+    applying twice changes nothing.
+
+    Raises:
+        HoldoutMismatchError: if the report was not written for the unit's Pipeline; no file is
+            changed.
+    """
+    unit = unit_paths(models_dir, model)
+    check_report(report, unit.pipeline)
+    metrics = json.loads(unit.operating_metrics.read_text())
+    if metrics["source"] == HOLDOUT_LABEL:
+        return
+    content = json.loads(report.read_text())
+    figures = content["metrics"]
+    applied = {
+        "model": metrics["model"],
+        "source": HOLDOUT_LABEL,
+        "ratios": {
+            ratio_key(content["cost_ratio"]): {
+                **{name: figures[name]["estimate"] for name in QUOTED_FIGURES},
+                "intervals": {
+                    name: {"low": figures[name]["low"], "high": figures[name]["high"]}
+                    for name in QUOTED_FIGURES
+                },
+            }
+        },
+        "holdout": {
+            key: content[key]
+            for key in ("date", "holdout_readings", "holdout_failures", "resamples")
+        }
+        | {"interval_level": content["interval_level"]},
+        "sensitivity": {"source": metrics["source"], "ratios": metrics["ratios"]},
+        "training_ranges": metrics["training_ranges"],
+        "training_types": metrics["training_types"],
+    }
+    unit.operating_metrics.write_text(json.dumps(applied, indent=2) + "\n")
+    manifest = json.loads(unit.manifest.read_text())
+    manifest["files"][unit.operating_metrics.name] = file_sha256(unit.operating_metrics)
+    unit.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     """Score the Holdout for the default model in ``models/`` and write it under ``reports/``.
 
-    With ``--check`` it only compares the committed report with the Pipeline (for builds).
+    With ``--check`` it only compares the committed report with the Pipeline (for builds), and
+    with ``--apply`` it also puts the report's figures into the unit's operating-metrics.
     """
     parser = argparse.ArgumentParser(description="Score the Holdout once (ADR 0012).")
     parser.add_argument(
@@ -146,13 +200,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="only check that the committed report belongs to the Pipeline in models/",
     )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="check the report, then label the unit's operating-metrics with its figures",
+    )
     args = parser.parse_args(argv)
-    if args.check:
+    if args.check or args.apply:
         try:
             check_report(REPORTS_DIR / REPORT_NAME, unit_paths(MODELS_DIR, DEFAULT_MODEL).pipeline)
         except (HoldoutMismatchError, FileNotFoundError) as error:
             raise SystemExit(str(error)) from error
         print("holdout report matches the Pipeline")
+        if args.apply:
+            apply_report(REPORTS_DIR / REPORT_NAME, MODELS_DIR)
+            print("operating-metrics now quote the holdout figures")
         return
     try:
         path = score_holdout(
