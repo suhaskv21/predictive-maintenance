@@ -14,6 +14,7 @@ from pathlib import Path
 
 from predictive_maintenance.config import PROJECT_ROOT, Config, load_config
 from predictive_maintenance.inference.artifact import DisabledUnit, load_unit
+from predictive_maintenance.training.provenance import is_commit_sha
 from predictive_maintenance.training.train import (
     DEFAULT_MODEL,
     ThresholdDriftError,
@@ -37,15 +38,21 @@ def requirement_name(requirement: str) -> str:
 
 
 def check_unit(models_dir: Path, model: str, config: Config) -> list[str]:
-    """Failures of the unit of ``model``: files, manifest, versions and the accepted threshold."""
+    """Failures of the unit of ``model``: files, manifest, commit, versions and the threshold."""
     unit = load_unit(models_dir, model)
     if isinstance(unit, DisabledUnit):
         return [f"unit {model}: {unit.reason}"]
+    failures = []
+    if not is_commit_sha(unit.manifest.get("git")):
+        failures.append(
+            f"unit {model}: the manifest records no Git commit (trained with --allow-dirty or "
+            "before ADR 0015); retrain from a clean commit"
+        )
     try:
         check_threshold(config, model, unit.operating_point.threshold)
     except ThresholdDriftError as error:
-        return [f"unit {model}: Operating threshold is not the accepted one: {error}"]
-    return []
+        failures.append(f"unit {model}: Operating threshold is not the accepted one: {error}")
+    return failures
 
 
 def check_site_size(site: Path, budget_mb: float) -> list[str]:

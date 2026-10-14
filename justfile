@@ -42,7 +42,7 @@ site:
     rm -rf dist build
     uv build --wheel
     uv run python -m predictive_maintenance.deploy.stage --wheel dist/*.whl --release "$(git describe --tags --always)"
-    uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run
+    uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run --no-sandbox
     uv run python -m predictive_maintenance.deploy.contract --wheel dist/*.whl --site build/site
 
 notebook:

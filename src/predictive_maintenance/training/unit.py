@@ -6,7 +6,8 @@ The unit lives under ``models/`` (git-ignored) as ``<model>.<part>``:
 - ``operating-point.json``: ``OperatingPoint`` (default ratio, thresholds by ratio, no bands);
 - ``missing.json``: the missing-data policy, strategy ``reject`` with an empty reference;
 - ``operating-metrics.json``: CV figures per Cost ratio labelled ``cv_train``, and training ranges;
-- ``manifest.json``: model name, library versions, SHA-256 of the other four files and the scores of
+- ``manifest.json``: model name, the Git commit trained from (ADR 0015), library versions, SHA-256
+  of the other four files and the scores of
   a few fixed train Readings (the golden check) and the Example readings with their recorded
   ``Machine failure`` outcome.
 
@@ -137,13 +138,15 @@ def write_unit(
     golden: pl.DataFrame,
     golden_scores: Sequence[float],
     examples: pl.DataFrame | None = None,
+    git_commit: str | None = None,
 ) -> ArtifactUnit:
     """Write the five files of ``point.model`` under ``models_dir`` and return their paths.
 
     ``golden`` are fixed train Readings (the six inputs) and ``golden_scores`` the Pipeline's
     scores on them, stored in the manifest for the golden check. ``examples`` are the Example
     readings (six inputs and ``Machine failure``, from the train partition), stored in the manifest
-    so the app can offer them without the dataset.
+    so the app can offer them without the dataset. ``git_commit`` is the clean commit the model was
+    trained from (ADR 0015); ``None`` marks a model that cannot be published.
 
     Raises:
         ValueError: if the policy or metrics name a different model than the operating point, or
@@ -164,6 +167,7 @@ def write_unit(
         unit.manifest,
         {
             "model": model,
+            "git": git_commit,
             "libraries": {name: version(name) for name in LIBRARIES},
             "files": {path.name: file_sha256(path) for path in unit.sidecars},
             "golden": {"readings": golden.to_dicts(), "scores": list(golden_scores)},

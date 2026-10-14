@@ -4,9 +4,12 @@
 seed and settings from ``configs/default.toml``, re-derives the Operating threshold by the ADR 0007
 method (one threshold per CV repeat, median across repeats) and fails if it differs from the
 accepted figure by more than the configured tolerance. The Holdout is discarded at the split and
-never read here. The unit's layout and formats are in ``training.unit``.
+never read here. The unit's layout and formats are in ``training.unit``. Training needs a clean Git
+working tree and records its commit (ADR 0015, ``training.provenance``).
 """
 
+import argparse
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +29,7 @@ from predictive_maintenance.evaluation.threshold import (
 )
 from predictive_maintenance.training.candidates import build_candidates
 from predictive_maintenance.training.examples import select_examples
+from predictive_maintenance.training.provenance import ProvenanceError, clean_head_commit
 from predictive_maintenance.training.unit import (
     ArtifactUnit,
     build_operating_metrics,
@@ -81,11 +85,17 @@ def golden_rows(scores: NDArray[np.float64], threshold: float) -> list[int]:
 
 
 def train_unit(
-    readings: pl.DataFrame, config: Config, models_dir: Path, *, model: str = DEFAULT_MODEL
+    readings: pl.DataFrame,
+    config: Config,
+    models_dir: Path,
+    *,
+    model: str = DEFAULT_MODEL,
+    git_commit: str | None = None,
 ) -> ArtifactUnit:
     """Fit ``model`` on the train partition of ``readings`` and write its five-file unit.
 
-    Nothing is written if the re-derived Operating threshold is outside tolerance.
+    Nothing is written if the re-derived Operating threshold is outside tolerance. ``git_commit``
+    is recorded in the manifest (ADR 0015); the clean-tree gate is in ``main``, not here.
 
     Raises:
         ThresholdDriftError: if the threshold at the default Cost ratio differs from the accepted
@@ -132,12 +142,29 @@ def train_unit(
         golden=golden,
         golden_scores=score_readings(pipeline, golden).tolist(),
         examples=examples,
+        git_commit=git_commit,
     )
 
 
-def main() -> None:
-    """Train the default model from ``configs/default.toml`` and write its unit to ``models/``."""
-    unit = train_unit(load_dataset(), load_config(), MODELS_DIR)
+def main(argv: Sequence[str] | None = None) -> None:
+    """Train the default model from ``configs/default.toml`` and write its unit to ``models/``.
+
+    Refuses to run unless the working tree is clean, and records ``HEAD`` in the manifest
+    (ADR 0015). ``--allow-dirty`` skips the gate and records no commit; the deploy contract then
+    rejects the unit.
+    """
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="train from an uncommitted tree; the unit records no commit and cannot be published",
+    )
+    args = parser.parse_args(argv)
+    try:
+        commit = None if args.allow_dirty else clean_head_commit(PROJECT_ROOT)
+    except ProvenanceError as error:
+        raise SystemExit(f"error: {error}") from error
+    unit = train_unit(load_dataset(), load_config(), MODELS_DIR, git_commit=commit)
     point = OperatingPoint.from_json(unit.operating_point.read_text())
     print(
         f"{unit.model}: Operating threshold {point.threshold:.4f} at {point.default_cost_ratio}:1"

@@ -101,7 +101,7 @@ just marimo-app          # run the app locally (needs `just train` first)
 
 | Command | What it does |
 |---|---|
-| `just train` | Trains the random forest on the train partition only, re-derives the Operating threshold by repeated CV and **fails** if it differs from the accepted 0.218 by more than 0.0005, then writes the five-file unit to `models/` (Pipeline, OperatingPoint, missing-data policy, operating-metrics, manifest with SHA-256 and library versions). `models/` is git-ignored and never committed. |
+| `just train` | Trains the random forest on the train partition only, re-derives the Operating threshold by repeated CV and **fails** if it differs from the accepted 0.218 by more than 0.0005, then writes the five-file unit to `models/` (Pipeline, OperatingPoint, missing-data policy, operating-metrics, manifest with the Git commit, SHA-256 and library versions). `models/` is git-ignored and never committed. |
 | `just holdout` | One-off: scores the Holdout once with the frozen threshold and writes `reports/holdout-metrics.json`. The report is already committed, so a second run **refuses**. Rescoring needs `--rescore` and a new ADR. |
 | `just holdout-check` | Fails with "holdout figures belong to a different model" if the report's hash is not the Pipeline in `models/`. Never rescores. |
 | `just holdout-apply` | Checks the report, then labels the unit's operating-metrics `holdout`, with intervals. The build does this after training. |
@@ -115,7 +115,10 @@ just marimo-app          # run the app locally (needs `just train` first)
 - **Data.** `data/raw/ai4i2020.csv` must be present, with the 14 columns above and no nulls; loading fails
   with a validation error otherwise.
 - **Reproducibility.** A fresh local `just train` produced a Pipeline with the same SHA-256 as the CI build,
-  so the Holdout report matches both.
+  so the Holdout report matches both. Training refuses a dirty Git tree and records the commit it ran from in
+  the manifest (ADR 0015); to reproduce a model, check out that commit, `uv sync` and `just train`.
+  `python -m predictive_maintenance.training.train --allow-dirty` trains from uncommitted changes for local
+  experiments; the unit then records no commit and the build contract rejects it.
 - **Layout.** Source in `src/predictive_maintenance/<stage>/` (`data`, `preprocessing`, `training`,
   `evaluation`, `inference`, `deploy`, plus `pipeline` and an empty `monitoring` placeholder), tests
   mirroring it under `tests/`. The app imports `inference/` only

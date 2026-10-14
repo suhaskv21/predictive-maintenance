@@ -104,6 +104,23 @@ def test_write_unit_creates_the_directory_and_records_the_hash_of_each_sidecar(
     assert len(manifest["golden"]["readings"]) == 2
 
 
+def test_write_unit_records_the_git_commit_or_null_when_none_is_given(tmp_path: Path) -> None:
+    frame = train_frame()
+    pipeline = Pipeline([("model", DummyClassifier())]).fit(frame, [0, 1, 0, 1])
+    for name, commit in (("with", "a" * 40), ("without", None)):
+        write_unit(
+            tmp_path / name,
+            pipeline=pipeline,
+            point=point(MODEL),
+            policy=reject_policy(MODEL, 10.0),
+            metrics=metrics(MODEL),
+            golden=frame.head(2),
+            golden_scores=[0.5, 0.5],
+            git_commit=commit,
+        )
+        assert json.loads(unit_paths(tmp_path / name, MODEL).manifest.read_text())["git"] == commit
+
+
 def test_write_unit_marks_the_policy_reference_as_not_measured(tmp_path: Path) -> None:
     unit = unit_paths(write(tmp_path), MODEL)
     assert json.loads(unit.missing.read_text())["reference_note"] == NOT_MEASURED

@@ -27,6 +27,7 @@ from predictive_maintenance.training.unit import (
 
 MODEL = "toy"
 THRESHOLD = 0.218
+COMMIT = "0123456789abcdef0123456789abcdef01234567"
 
 
 def readings() -> pl.DataFrame:
@@ -42,7 +43,9 @@ def readings() -> pl.DataFrame:
     )
 
 
-def write_toy_unit(models_dir: Path, *, threshold: float = THRESHOLD) -> None:
+def write_toy_unit(
+    models_dir: Path, *, threshold: float = THRESHOLD, git_commit: str | None = COMMIT
+) -> None:
     frame = readings()
     pipeline = Pipeline([("model", DummyClassifier(strategy="prior"))]).fit(frame, [0, 1, 0, 1])
     thresholds = {5.0: 0.3, 10.0: threshold}
@@ -62,6 +65,7 @@ def write_toy_unit(models_dir: Path, *, threshold: float = THRESHOLD) -> None:
         ),
         golden=frame.head(2),
         golden_scores=[0.5, 0.5],
+        git_commit=git_commit,
     )
 
 
@@ -126,6 +130,16 @@ def test_a_threshold_outside_tolerance_of_the_accepted_figure_fails_the_build(
     write_toy_unit(tmp_path, threshold=0.25)
     failures = check_unit(tmp_path, MODEL, config())
     assert any("accepted" in failure for failure in failures)
+
+
+@pytest.mark.parametrize("commit", [None, "abc123", "0123456789ABCDEF0123456789ABCDEF01234567"])
+def test_a_unit_without_a_full_git_commit_fails_the_build(
+    tmp_path: Path, commit: str | None
+) -> None:
+    write_toy_unit(tmp_path, git_commit=commit)
+    failures = check_unit(tmp_path, MODEL, config())
+    assert len(failures) == 1
+    assert "Git commit" in failures[0]
 
 
 def test_a_threshold_within_tolerance_passes(tmp_path: Path) -> None:

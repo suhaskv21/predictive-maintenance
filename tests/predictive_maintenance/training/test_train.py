@@ -24,6 +24,7 @@ from predictive_maintenance.evaluation.missingness import MissingDataPolicy
 from predictive_maintenance.evaluation.split import stratified_holdout
 from predictive_maintenance.evaluation.threshold import OperatingPoint
 from predictive_maintenance.training import train as train_module
+from predictive_maintenance.training.provenance import ProvenanceError
 from predictive_maintenance.training.train import (
     DEFAULT_MODEL,
     ThresholdDriftError,
@@ -113,6 +114,14 @@ def test_the_manifest_names_the_model_the_versions_and_the_hash_of_the_other_fou
     assert manifest["libraries"] == {name: version(name) for name in LIBRARIES}
     assert manifest["files"] == {p.name: file_sha256(p) for p in unit.sidecars}
     assert len(manifest["files"]) == 4
+
+
+def test_the_manifest_records_no_commit_unless_training_is_given_one(
+    unit_dir: Path, tmp_path: Path
+) -> None:
+    assert read_json(unit_paths(unit_dir, DEFAULT_MODEL).manifest)["git"] is None
+    train_unit(fixture_readings(), config(), tmp_path, git_commit="b" * 40)
+    assert read_json(unit_paths(tmp_path, DEFAULT_MODEL).manifest)["git"] == "b" * 40
 
 
 def test_the_pipeline_bundles_preprocessing_and_model_and_takes_only_the_six_inputs(
@@ -301,3 +310,55 @@ def test_training_fails_for_a_model_without_an_accepted_threshold(tmp_path: Path
     )
     with pytest.raises(ThresholdDriftError, match=DEFAULT_MODEL):
         train_unit(fixture_readings(), unlisted, tmp_path)
+
+
+class CapturedRun:
+    """Replaces ``train_unit`` in ``main``: records the commit it was given instead of training."""
+
+    def __init__(self, unit: Path) -> None:
+        self.unit = unit
+        self.commits: list[str | None] = []
+
+    def __call__(self, *args: Any, git_commit: str | None = None, **kwargs: Any) -> Any:
+        self.commits.append(git_commit)
+        return unit_paths(self.unit, DEFAULT_MODEL)
+
+
+@pytest.fixture
+def captured_main(unit_dir: Path, monkeypatch: pytest.MonkeyPatch) -> CapturedRun:
+    run = CapturedRun(unit_dir)
+    monkeypatch.setattr(train_module, "train_unit", run)
+    monkeypatch.setattr(train_module, "PROJECT_ROOT", unit_dir)
+    monkeypatch.setattr(train_module, "load_dataset", lambda: fixture_readings())
+    return run
+
+
+def test_main_records_the_clean_head_commit(
+    captured_main: CapturedRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(train_module, "clean_head_commit", lambda root: "c" * 40)
+    train_module.main([])
+    assert captured_main.commits == ["c" * 40]
+
+
+def test_main_refuses_a_dirty_tree_before_training(
+    captured_main: CapturedRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def dirty(root: Path) -> str:
+        raise ProvenanceError("the working tree is not clean")
+
+    monkeypatch.setattr(train_module, "clean_head_commit", dirty)
+    with pytest.raises(SystemExit, match="not clean"):
+        train_module.main([])
+    assert captured_main.commits == []
+
+
+def test_main_with_allow_dirty_skips_the_gate_and_records_no_commit(
+    captured_main: CapturedRun, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def forbidden(root: Path) -> str:
+        raise AssertionError("the gate must not run")
+
+    monkeypatch.setattr(train_module, "clean_head_commit", forbidden)
+    train_module.main(["--allow-dirty"])
+    assert captured_main.commits == [None]
