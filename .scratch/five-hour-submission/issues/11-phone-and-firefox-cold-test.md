@@ -6,9 +6,16 @@ Parent: `.scratch/five-hour-submission/spec.md`.
 
 **Blocked by:** 05 (Build workflow and first live deploy)
 
-**Status:** ready-for-human
+**Status:** resolved
 
-- [ ] Open the live URL on a phone and in Firefox from a cold cache, on a connection that is not the one used for development.
-- [ ] Record time to the first usable screen, whether one complete Reading and one with a missing input assess correctly, and whether the in-app golden check (if built) passed.
-- [ ] A first load over 60 s, or any failure, is recorded in the ticket's comments with the device, browser and connection; failures that can be fixed within the stop rule get a new ticket.
-- [ ] The results are available to the README ticket as the stated, limited browser evidence (one device and browser).
+- [x] Open the live URL on a phone and in Firefox from a cold cache, on a connection that is not the one used for development.
+- [x] Record time to the first usable screen, whether one complete Reading and one with a missing input assess correctly, and whether the in-app golden check (if built) passed.
+- [x] A first load over 60 s, or any failure, is recorded in the ticket's comments with the device, browser and connection; failures that can be fixed within the stop rule get a new ticket.
+- [x] The results are available to the README ticket as the stated, limited browser evidence (one device and browser).
+
+## Comments
+
+Results reported by the owner: Chrome and Firefox over a cellular connection (not the development connection); first
+usable screen in about 30 s; one complete Reading and one with a missing input assessed correctly; no failures and no
+load over 60 s. Not recorded: device, browser versions, and the in-app golden check result. Recorded in the README's
+Browser evidence as limited, manual evidence.

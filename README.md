@@ -7,7 +7,7 @@
 **Live app: <https://suhaskv21.github.io/predictive-maintenance/>**
 
 The first load is heavy: the page downloads a Python runtime into your browser, which took about 19 s to
-93 s where it was measured (see [Browser evidence](#browser-evidence)). The footer shows the commit the
+93 s where it was measured, and about 30 s in a manual cellular-network check (see [Browser evidence](#browser-evidence)). The footer shows the commit the
 site was built from. The site is rebuilt only on request (see [Deployment](#deployment-provider-and-limitations)),
 so it can lag the `master` branch.
 
@@ -204,7 +204,7 @@ Dashboards, alerting and the health tab are designed in ADRs 0008 to 0010 and de
 | **Public model files.** The Pipeline is published with the site and anyone can download it. | Acceptable for a model trained on a public synthetic benchmark. Real plant data would need a hosted inference service with access control (dashed in the diagram). |
 | **Per-browser state.** Nothing persists and nothing is shared, so there is no log and no cross-user monitoring. | The monitoring above needs a server-side log; it is described, not built. |
 | **Stale thresholds when pins move.** The Operating threshold depends on library versions, so a changed pin can move scores against a fixed line. | Training re-derives the threshold and fails if it differs from the accepted 0.218 by more than 0.0005. The manifest records versions. Any figure that moves needs a new ADR (the ADR 0011 precedent). |
-| **Single browser checked.** | See [Browser evidence](#browser-evidence). Treat other browsers as untested. |
+| **Few browsers checked.** One automated Chromium run and one manual Chrome and Firefox check. | See [Browser evidence](#browser-evidence). Treat Safari and other devices as untested. |
 | **Stale site.** The site is rebuilt only for a head commit containing `TRIGGER_CI`, so it can lag `master`. | The footer shows the build commit; the last commit before submission carries the token and the checklist compares the two. |
 | **Assumed cost, synthetic data.** The 10:1 ratio is an assumption and the data is a benchmark. | Both are stated on every screen. Replace the ratio with the plant's and retrain before real use. |
 
@@ -228,8 +228,11 @@ Stated plainly, with its limits:
 - **Earlier check before deployment (ADR 0009, 0010).** Chrome 153 on Windows, localhost, one run: scores
   within 1e-9 of the native run with the same Flags on 1,000 train Readings, 19.0 s to the first cell, 325 MB
   heap. It is not known whether that was a cold load.
-- **Phone and Firefox cold test:** no result is recorded yet (ticket 11, `ready-for-human`). Until it is, the
-  app has been seen working in one automated Chromium run only; Firefox, Safari and phones are untested.
+- **Cold test in Chrome and Firefox over a cellular connection (ticket 11).** Reported by the owner, from a
+  connection other than the one used for development: first usable screen in about **30 s**; one complete
+  Reading and one with a missing input assessed correctly; no failures. The device (phone or desktop) and the
+  exact browser versions were not recorded, and the in-app golden check result was not separately noted.
+  This is a short manual check, not a test matrix: Safari and other devices are untested.
 
 ## Not implemented
 
@@ -246,11 +249,8 @@ Also not built:
 
 - **A refit on the full data** after the Holdout evaluation. The deployed model is fitted on the 70 % train
   partition only.
-- The cuttable app items of the five-hour plan (tickets 08 to 10): the Example-reading selector, the
-  "outside the range of the training data" note and the sensitivity expander (recall and precision at the
-  5:1, 10:1 and 20:1 Cost ratios), and the in-app golden check (a score comparison at load). Plausibility
-  limits do apply: physically impossible inputs are refused. The sensitivity figures at 5:1 and 20:1 exist
-  in the unit's operating-metrics file but are not shown in the app.
+- The cuttable app items of the five-hour plan (tickets 08 to 10: Example readings, the out-of-range note
+  with the sensitivity expander, and the in-app golden check) **were built** and are not on this list.
 - Imputation, Failure-mode output, per-Reading explanations, Risk bands, calibration, tuning, a real Cost
   ratio, alerting, and retraining automation.
 
