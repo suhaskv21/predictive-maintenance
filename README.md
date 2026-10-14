@@ -1,5 +1,9 @@
 # Predictive Maintenance
 
+[![CI](https://github.com/suhaskv21/predictive-maintenance/actions/workflows/ci.yml/badge.svg)](https://github.com/suhaskv21/predictive-maintenance/actions/workflows/ci.yml)
+[![Pages deploy](https://github.com/suhaskv21/predictive-maintenance/actions/workflows/pages.yml/badge.svg)](https://github.com/suhaskv21/predictive-maintenance/actions/workflows/pages.yml)
+[![Live app](https://img.shields.io/badge/live%20app-GitHub%20Pages-blue)](https://suhaskv21.github.io/predictive-maintenance/)
+
 **Live app: <https://suhaskv21.github.io/predictive-maintenance/>**
 
 The first load is heavy: the page downloads a Python runtime into your browser, which took about 19 s to
