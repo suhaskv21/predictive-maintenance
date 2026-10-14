@@ -6,15 +6,15 @@ Parent: `.scratch/five-hour-submission/spec.md`.
 
 **Blocked by:** 04 (One-screen marimo app (local))
 
-**Status:** in-progress (built and rehearsed locally; waits on the owner: enable Pages, then push a `TRIGGER_CI` commit)
+**Status:** resolved
 
-- [ ] Owner prerequisite, needed before the first deploy: enable Pages with source GitHub Actions (Settings, Pages). The agent states this clearly and stops if the deploy step reports Pages is disabled.
+- [x] Owner prerequisite, needed before the first deploy: enable Pages with source GitHub Actions (Settings, Pages). The agent states this clearly and stops if the deploy step reports Pages is disabled.
 - [x] The workflow runs only when the head commit message contains `TRIGGER_CI` (any case) or on manual dispatch; no path filter and no pull-request trigger. The existing check workflow is untouched and stays automatic.
 - [x] Steps: locked sync; full check; train; build the wheel; export the site as a directory in WebAssembly mode; contract checks; upload and deploy. Pages write permission only on the deploy job; read-only elsewhere.
 - [x] Contract checks fail the build on: a missing unit file or manifest mismatch; a re-derived threshold outside tolerance of the accepted figure; a site over the configured budget; training reading the Holdout; wheel dependencies not bundled in Pyodide.
 - [x] The footer shows the deployed build commit.
-- [ ] After the first triggered push the public URL loads and assesses one Reading; the URL is recorded in the ticket's comments.
-- [ ] The time of the cold sync and the training step is recorded; the 3-minute trigger for revisiting the XGBoost swap is noted if exceeded.
+- [x] After the first triggered push the public URL loads and assesses one Reading; the URL is recorded in the ticket's comments.
+- [x] The time of the cold sync and the training step is recorded; the 3-minute trigger for revisiting the XGBoost swap is noted if exceeded.
 - [x] `just check` passes and its result is shown.
 
 ## Comments
@@ -41,5 +41,10 @@ here (behind a TLS-inspecting proxy).
 summary (a warning is added if the cold sync exceeds 3 minutes, the trigger to revisit the XGBoost swap); copy them here after
 the first run.
 
-**Still open:** push a commit containing `TRIGGER_CI`, confirm the public URL loads and assesses a Reading, record the URL and the
-CI timings here. Not in this ticket: the Holdout report hash check (ticket 07).
+**First triggered deploy (2026-10-14):** public URL https://suhaskv21.github.io/predictive-maintenance/ (commit `c314f96`).
+Checked in headless Chromium: the page loaded, installed the wheel, downloaded the unit and assessed the default Reading
+("Failure risk (rough estimate, not calibrated): under 1 %", "This model flags from about 22 %") with footer
+"Build commit: c314f96", matching the head commit. About 93 s to first render from this machine (behind a TLS-inspecting proxy).
+
+**CI timings:** cold `uv sync --locked` 4 s; training step 23 s. Both far under the 3-minute trigger, so the XGBoost swap is
+not revisited. Not in this ticket: the Holdout report hash check (ticket 07).
