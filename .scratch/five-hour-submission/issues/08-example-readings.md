@@ -6,10 +6,10 @@ Parent: `.scratch/five-hour-submission/spec.md`.
 
 **Blocked by:** 04 (One-screen marimo app (local))
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The selection draws from the train partition only, never the Holdout, with the config seed, per outcome class using `[app] example_failures` and the remaining count from `example_count`; it fails loudly if the train partition has fewer failures than requested.
-- [ ] Choosing an Example reading fills the form; assessing it shows the outcome line from the Presentation naming only `Machine failure` (never the five mode flags).
-- [ ] Editing any input clears the outcome line.
-- [ ] A test asserts no Holdout Reading can be selected, and another asserts the outcome line text passes the banned-wording test.
-- [ ] `just check` passes and its result is shown.
+- [x] The selection draws from the train partition only, never the Holdout, with the config seed, per outcome class using `[app] example_failures` and the remaining count from `example_count`; it fails loudly if the train partition has fewer failures than requested.
+- [x] Choosing an Example reading fills the form; assessing it shows the outcome line from the Presentation naming only `Machine failure` (never the five mode flags).
+- [x] Editing any input clears the outcome line.
+- [x] A test asserts no Holdout Reading can be selected, and another asserts the outcome line text passes the banned-wording test.
+- [x] `just check` passes and its result is shown.

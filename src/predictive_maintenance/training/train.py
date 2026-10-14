@@ -25,6 +25,7 @@ from predictive_maintenance.evaluation.threshold import (
     risk_floor,
 )
 from predictive_maintenance.training.candidates import build_candidates
+from predictive_maintenance.training.examples import select_examples
 from predictive_maintenance.training.unit import (
     ArtifactUnit,
     build_operating_metrics,
@@ -92,6 +93,12 @@ def train_unit(
         KeyError: if ``model`` is not a known candidate.
     """
     train, _ = stratified_holdout(readings, test_size=config.split.test_size, seed=config.seed)
+    examples = select_examples(
+        train,
+        count=config.app.example_count,
+        failures=config.app.example_failures,
+        seed=config.seed,
+    )
     candidate = build_candidates(config.seed)[model]
     y = train[schema.TARGET].to_numpy()
     folds = cv_folds(
@@ -124,6 +131,7 @@ def train_unit(
         metrics=build_operating_metrics(model, y, out_of_fold, thresholds, train),
         golden=golden,
         golden_scores=score_readings(pipeline, golden).tolist(),
+        examples=examples,
     )
 
 

@@ -15,6 +15,9 @@ from sklearn.pipeline import Pipeline
 
 from predictive_maintenance.data import schema
 from predictive_maintenance.evaluation.threshold import OperatingPoint
+from predictive_maintenance.inference.artifact import LoadedUnit, load_unit
+from predictive_maintenance.inference.examples import load_examples
+from predictive_maintenance.inference.presentation import banned_wording_in
 from predictive_maintenance.training.unit import (
     build_operating_metrics,
     reject_policy,
@@ -39,6 +42,7 @@ ALLOWED_IMPORTS = {
     "predictive_maintenance.data",
     "predictive_maintenance.inference.artifact",
     "predictive_maintenance.inference.assessment",
+    "predictive_maintenance.inference.examples",
     "predictive_maintenance.inference.golden",
     "predictive_maintenance.inference.presentation",
     "predictive_maintenance.inference.site",
@@ -53,7 +57,13 @@ def load_app() -> ModuleType:
     return module
 
 
-def write_constant_unit(models_dir: Path, *, threshold: float, centre: float = 100) -> None:
+def write_constant_unit(
+    models_dir: Path,
+    *,
+    threshold: float,
+    centre: float = 100,
+    examples: pl.DataFrame | None = None,
+) -> None:
     """A unit whose Pipeline scores every Reading 0.3, so the Flag depends on ``threshold`` only."""
     rng = np.random.default_rng(1)
     n = 1000
@@ -80,15 +90,26 @@ def write_constant_unit(models_dir: Path, *, threshold: float, centre: float = 1
         metrics=build_operating_metrics(MODEL, y, np.array([y * 0.5]), thresholds, frame),
         golden=frame.head(1),
         golden_scores=[0.3],
+        examples=examples,
     )
 
 
-def run(models_dir: Path, reading: dict[str, Any] | None = None) -> tuple[Any, Any]:
+def run(
+    models_dir: Path, reading: dict[str, Any] | None = None, example: Any = None
+) -> tuple[Any, Any]:
+    return run_app(models_dir, reading, example)[:2]
+
+
+def run_app(
+    models_dir: Path, reading: dict[str, Any] | None = None, example: Any = None
+) -> tuple[Any, Any, Any]:
     defs: dict[str, Any] = {"unit_dir": models_dir}
     if reading is not None:
         defs["reading"] = reading
+    if example is not None:
+        defs["example"] = example
     outputs, definitions = load_app().app.run(defs=defs)
-    return outputs[-1].text, definitions["presentation"]
+    return outputs[-1].text, definitions["presentation"], definitions
 
 
 @pytest.fixture
@@ -230,3 +251,88 @@ def test_what_a_flag_means_is_inside_an_expander(flagging_dir: Path) -> None:
     assert all(line in html for line in presentation.meaning)
     refused, _ = run(flagging_dir, {**READING, TORQUE: None})
     assert "What this Flag means" not in refused
+
+
+EXAMPLES = pl.DataFrame(
+    {
+        schema.CATEGORICAL_FEATURE: ["L", "H"],
+        AIR: [298.5, 301.0],
+        PROCESS: [308.5, 311.0],
+        SPEED: [1400, 2100],
+        TORQUE: [30.5, 65.0],
+        WEAR: [10, 220],
+        schema.TARGET: [0, 1],
+    }
+)
+
+
+@pytest.fixture
+def examples_dir(tmp_path: Path) -> Path:
+    write_constant_unit(tmp_path, threshold=0.2, examples=EXAMPLES)
+    return tmp_path
+
+
+def load_app_examples(models_dir: Path) -> tuple[Any, ...]:
+    unit = load_unit(models_dir, MODEL)
+    assert isinstance(unit, LoadedUnit)
+    return load_examples(unit)
+
+
+def example_reading(row: int) -> dict[str, Any]:
+    return {name: EXAMPLES[name][row] for name in schema.FEATURE_COLUMNS}
+
+
+def test_the_example_selector_offers_each_example_without_its_outcome(
+    examples_dir: Path,
+) -> None:
+    html, _, definitions = run_app(examples_dir, READING)
+    assert "Example reading" in html
+    labels = [example.label for example in definitions["examples"]]
+    assert labels == ["Example reading 1", "Example reading 2"]
+    assert all(label in html for label in labels)
+    assert "Recorded in the data" not in html
+
+
+def test_a_unit_without_examples_shows_no_selector(flagging_dir: Path) -> None:
+    html, _ = run(flagging_dir, READING)
+    assert "Example reading" not in html
+
+
+@pytest.mark.parametrize(("row", "outcome"), [(0, "no failure"), (1, "Machine failure")])
+def test_choosing_an_example_fills_the_form_and_shows_its_recorded_outcome(
+    examples_dir: Path, row: int, outcome: str
+) -> None:
+    chosen = load_app_examples(examples_dir)[row]
+    html, presentation, definitions = run_app(examples_dir, example=chosen)
+    assert definitions["inputs"].value == example_reading(row)
+    assert f"Recorded in the data: {outcome}." in html
+    assert presentation.outcome_line in html
+    assert "so agreement proves nothing" in html
+    assert not any(mode in presentation.outcome_line for mode in schema.FAILURE_MODES)
+
+
+def test_the_outcome_line_text_passes_the_banned_wording_test(examples_dir: Path) -> None:
+    for chosen in load_app_examples(examples_dir):
+        _, presentation = run(examples_dir, example=chosen)
+        assert banned_wording_in(presentation.outcome_line) == []
+
+
+@pytest.mark.parametrize("name", list(READING))
+def test_editing_any_input_clears_the_outcome_line(examples_dir: Path, name: str) -> None:
+    chosen = load_app_examples(examples_dir)[1]
+    edited = {**example_reading(1), name: "M" if name == "Type" else 123.0}
+    html, presentation = run(examples_dir, edited, example=chosen)
+    assert presentation.outcome_line is None
+    assert "Recorded in the data" not in html
+
+
+def test_emptying_an_input_clears_the_outcome_line(examples_dir: Path) -> None:
+    chosen = load_app_examples(examples_dir)[1]
+    html, _ = run(examples_dir, {**example_reading(1), TORQUE: None}, example=chosen)
+    assert "Recorded in the data" not in html
+
+
+def test_without_a_chosen_example_no_outcome_is_shown(examples_dir: Path) -> None:
+    html, presentation = run(examples_dir, example_reading(1))
+    assert presentation.outcome_line is None
+    assert "Recorded in the data" not in html

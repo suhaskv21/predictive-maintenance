@@ -198,6 +198,29 @@ def assert_same_figures(first: Path, second: Path) -> None:
         assert one.read_text() == other.read_text()
 
 
+def test_the_examples_are_train_rows_never_holdout_rows_with_the_configured_failures(
+    unit_dir: Path,
+) -> None:
+    rows = read_json(unit_paths(unit_dir, DEFAULT_MODEL).manifest)["examples"]
+    examples = pl.DataFrame(rows)
+    assert examples.columns == [*schema.FEATURE_COLUMNS, schema.TARGET]
+    assert examples.height == 10
+    assert examples[schema.TARGET].sum() == 3
+    train, holdout = stratified_holdout(fixture_readings(), test_size=0.3, seed=SEED)
+    columns = [*schema.FEATURE_COLUMNS, schema.TARGET]
+    assert examples.join(train.select(columns), on=columns).height == examples.height
+    assert examples.join(holdout.select(columns), on=columns).height == 0
+
+
+def test_training_fails_loudly_when_the_train_partition_has_too_few_failures(
+    tmp_path: Path,
+) -> None:
+    few = fixture_readings(failures=2)
+    with pytest.raises(ValueError, match="failures"):
+        train_unit(few, config(), tmp_path)
+    assert not list(tmp_path.iterdir())
+
+
 def test_training_is_reproducible_for_the_seed(unit_dir: Path, tmp_path: Path) -> None:
     train_unit(fixture_readings(), config(), tmp_path)
     assert_same_figures(tmp_path, unit_dir)
@@ -205,6 +228,10 @@ def test_training_is_reproducible_for_the_seed(unit_dir: Path, tmp_path: Path) -
         read_json(unit_paths(d, DEFAULT_MODEL).manifest)["golden"] for d in (tmp_path, unit_dir)
     )
     assert first == second
+    first_examples, second_examples = (
+        read_json(unit_paths(d, DEFAULT_MODEL).manifest)["examples"] for d in (tmp_path, unit_dir)
+    )
+    assert first_examples == second_examples
 
 
 class PoisonedHoldout:

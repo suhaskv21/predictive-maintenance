@@ -7,7 +7,8 @@ The unit lives under ``models/`` (git-ignored) as ``<model>.<part>``:
 - ``missing.json``: the missing-data policy, strategy ``reject`` with an empty reference;
 - ``operating-metrics.json``: CV figures per Cost ratio labelled ``cv_train``, and training ranges;
 - ``manifest.json``: model name, library versions, SHA-256 of the other four files and the scores of
-  a few fixed train Readings (the golden check).
+  a few fixed train Readings (the golden check) and the Example readings with their recorded
+  ``Machine failure`` outcome.
 
 This module knows the layout and the file formats, not how a model is trained, so the training
 command writes the unit and the inference layer can find and read it through the same names.
@@ -135,11 +136,14 @@ def write_unit(
     metrics: Mapping[str, Any],
     golden: pl.DataFrame,
     golden_scores: Sequence[float],
+    examples: pl.DataFrame | None = None,
 ) -> ArtifactUnit:
     """Write the five files of ``point.model`` under ``models_dir`` and return their paths.
 
     ``golden`` are fixed train Readings (the six inputs) and ``golden_scores`` the Pipeline's
-    scores on them, stored in the manifest for the golden check.
+    scores on them, stored in the manifest for the golden check. ``examples`` are the Example
+    readings (six inputs and ``Machine failure``, from the train partition), stored in the manifest
+    so the app can offer them without the dataset.
 
     Raises:
         ValueError: if the policy or metrics name a different model than the operating point, or
@@ -163,6 +167,7 @@ def write_unit(
             "libraries": {name: version(name) for name in LIBRARIES},
             "files": {path.name: file_sha256(path) for path in unit.sidecars},
             "golden": {"readings": golden.to_dicts(), "scores": list(golden_scores)},
+            **({} if examples is None else {"examples": examples.to_dicts()}),
         },
     )
     return unit

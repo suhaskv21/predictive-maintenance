@@ -12,6 +12,7 @@ def _():
     from predictive_maintenance.data import schema
     from predictive_maintenance.inference.artifact import DisabledUnit, load_unit
     from predictive_maintenance.inference.assessment import assess
+    from predictive_maintenance.inference.examples import find_example, load_examples, recorded_outcome
     from predictive_maintenance.inference.golden import check_golden
     from predictive_maintenance.inference.presentation import (
         golden_banner,
@@ -25,13 +26,16 @@ def _():
         assess,
         check_golden,
         config_file,
+        find_example,
         golden_banner,
         load_config,
+        load_examples,
         load_unit,
         mo,
         models_dir,
         present,
         present_unavailable,
+        recorded_outcome,
         schema,
     )
 
@@ -72,18 +76,46 @@ def _(DisabledUnit, check_golden, golden_banner, unit):
 
 
 @app.cell
-def _(config, mo, schema):
+def _(load_examples, mo, unit):
+    # Training stored the Example readings (train partition only) in the unit; labels hide the outcome.
+    examples = load_examples(unit)
+    example_picker = mo.ui.dropdown(
+        [example.label for example in examples], allow_select_none=True, label="Example reading"
+    )
+    return example_picker, examples
+
+
+@app.cell
+def _(example_picker, examples, find_example):
+    example = find_example(examples, example_picker.value)
+    return (example,)
+
+
+@app.cell
+def _(config, example, mo, schema):
+    # Choosing an Example reading rebuilds the form with its values; without one, the defaults.
     _air, _process, _speed, _torque, _wear = schema.NUMERIC_FEATURES
-    _numbers = {_air: 300.0, _process: 310.0, _speed: 1500, _torque: 40.0, _wear: 100}
+    _defaults = {
+        schema.CATEGORICAL_FEATURE: "M",
+        _air: 300.0,
+        _process: 310.0,
+        _speed: 1500,
+        _torque: 40.0,
+        _wear: 100,
+    }
+    _start = example.reading if example else _defaults
     inputs = mo.ui.dictionary(
         {
             schema.CATEGORICAL_FEATURE: mo.ui.dropdown(
                 list(config.plausibility.types),
-                value="M",
+                value=_start[schema.CATEGORICAL_FEATURE],
                 allow_select_none=True,
                 label=schema.CATEGORICAL_FEATURE,
             ),
-            **{name: mo.ui.number(value=value, label=name) for name, value in _numbers.items()},
+            **{
+                name: mo.ui.number(value=_start[name], label=name)
+                for name in schema.NUMERIC_FEATURES
+            },
         }
     )
     return (inputs,)
@@ -96,7 +128,17 @@ def _(inputs):
 
 
 @app.cell
-def _(DisabledUnit, assess, config, present, present_unavailable, reading, unit):
+def _(
+    DisabledUnit,
+    assess,
+    config,
+    example,
+    present,
+    present_unavailable,
+    reading,
+    recorded_outcome,
+    unit,
+):
     _ratio = config.threshold.default_cost_ratio
     if isinstance(unit, DisabledUnit):
         presentation = present_unavailable(unit, cost_ratio=_ratio)
@@ -106,12 +148,13 @@ def _(DisabledUnit, assess, config, present, present_unavailable, reading, unit)
             unit.operating_point,
             unit.operating_metrics,
             cost_ratio=_ratio,
+            recorded_outcome=recorded_outcome(example, reading),
         )
     return (presentation,)
 
 
 @app.cell
-def _(BUILD_COMMIT, inputs, mo, presentation, scoring_banner):
+def _(BUILD_COMMIT, example_picker, examples, inputs, mo, presentation, scoring_banner):
     _kinds = {
         "inspect": "warn",
         "no_inspection_flagged": "neutral",
@@ -130,6 +173,7 @@ def _(BUILD_COMMIT, inputs, mo, presentation, scoring_banner):
             _wrap,
             mo.md("# Machine failure check"),
             *([mo.callout(mo.plain_text(scoring_banner), kind="danger")] if scoring_banner else []),
+            *([example_picker] if examples else []),
             mo.md("Enter the six readings from one machine."),
             mo.vstack(list(inputs.elements.values()), gap=0.5),
             mo.callout(mo.md(f"## {presentation.headline}"), kind=_kinds[presentation.state]),

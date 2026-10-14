@@ -165,3 +165,20 @@ def test_undefined_operating_figures_are_null_not_nan() -> None:
     assert ratios["5.0"]["precision"] is None and ratios["5.0"]["false_alarms_per_caught"] is None
     assert not math.isnan(ratios["5.0"]["recall"])
     json.dumps(result, allow_nan=False)
+
+
+def test_write_unit_stores_the_examples_in_the_manifest_when_given(tmp_path: Path) -> None:
+    frame = train_frame()
+    pipeline = Pipeline([("model", DummyClassifier())]).fit(frame, [0, 1, 0, 1])
+    examples = frame.head(2).with_columns(pl.Series("Machine failure", [0, 1]))
+    unit = write_unit(
+        tmp_path,
+        pipeline=pipeline,
+        point=point(),
+        policy=reject_policy(MODEL, 10.0),
+        metrics=metrics(),
+        golden=frame.head(1),
+        golden_scores=[0.5],
+        examples=examples,
+    )
+    assert json.loads(unit.manifest.read_text())["examples"] == examples.to_dicts()
