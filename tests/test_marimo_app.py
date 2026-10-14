@@ -146,6 +146,13 @@ def test_a_unit_that_fails_its_checks_shows_the_error_state(tmp_path: Path) -> N
     assert "Scoring check failed" not in html
 
 
+def test_the_model_name_and_caveats_sit_in_a_model_card_expander(flagging_dir: Path) -> None:
+    for reading in (READING, {**READING, TORQUE: None}):
+        html, presentation = run(flagging_dir, reading)
+        assert "Model card: Random forest (unweighted)" in html
+        assert presentation.model_card_title in html
+
+
 def test_every_state_shows_the_caveats_and_the_build_commit(flagging_dir: Path) -> None:
     for reading in (READING, {**READING, TORQUE: None}):
         html, presentation = run(flagging_dir, reading)
@@ -215,3 +222,11 @@ def test_the_notebook_imports_only_the_inference_layer_and_its_config() -> None:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imported.add(node.module)
     assert imported <= ALLOWED_IMPORTS, sorted(imported - ALLOWED_IMPORTS)
+
+
+def test_what_a_flag_means_is_inside_an_expander(flagging_dir: Path) -> None:
+    html, presentation = run(flagging_dir, READING)
+    assert presentation.meaning_title is not None and presentation.meaning_title in html
+    assert all(line in html for line in presentation.meaning)
+    refused, _ = run(flagging_dir, {**READING, TORQUE: None})
+    assert "What this Flag means" not in refused

@@ -69,6 +69,7 @@ GOLDEN_SHOWN = 3  # differences quoted in the banner; the rest are counted
 FLAG_LINE_NOTE = "A risk within a percent of this line can go either way."
 OUTCOME_SUFFIX = "This Reading was in the training data, so agreement proves nothing."
 RANGE_NOTE = "outside the range of the training data, treat the result as unreliable."
+MEANING_TITLE = "What this Flag means"
 SENSITIVITY_TITLE = "How the Flag changes with the cost assumption"
 UNAVAILABLE_FIGURES = "figures not available"
 
@@ -109,6 +110,8 @@ class Presentation:
     model_line: str
     caveats: tuple[str, ...]
     range_note: str | None = None
+    model_card_title: str = ""
+    meaning_title: str | None = None
     sensitivity_title: str | None = None
     sensitivity_intro: str | None = None
     sensitivity: tuple[SensitivityRow, ...] = ()
@@ -186,10 +189,14 @@ def model_name(model: str) -> str:
     return MODEL_NAMES.get(model, model.replace("_", " ").capitalize())
 
 
+def model_card_title(model: str) -> str:
+    """The title of the expander that holds the model's name and the always-on caveats."""
+    return f"Model card: {model_name(model)}"
+
+
 def _caveats(cost_ratio: float) -> tuple[str, ...]:
     return (
         "Estimated from historical readings.",
-        "Synthetic benchmark data, not your plant.",
         f"Assumes one missed failure costs as much as {cost_ratio:g} false alarms. "
         "This is an assumption, not a measurement.",
         "An aid for prioritising inspections, not a guarantee.",
@@ -329,6 +336,7 @@ def present(
             outcome_line=None,
             model_line=model_line,
             caveats=caveats,
+            model_card_title=model_card_title(operating_point.model),
         )
     if assessment.failure_risk is None or assessment.flag is None:
         raise ValueError("a complete assessment needs a failure risk and a flag")
@@ -341,10 +349,12 @@ def present(
         flag_line=flag_line_text(operating_point.threshold, floor),
         flag_line_note=FLAG_LINE_NOTE,
         meaning=_meaning(operating_metrics, cost_ratio, assessment.flag),
+        meaning_title=MEANING_TITLE,
         refusal=(),
         outcome_line=None if recorded_outcome is None else example_outcome_line(recorded_outcome),
         model_line=model_line,
         caveats=caveats,
+        model_card_title=model_card_title(operating_point.model),
         range_note=_range_note(assessment),
         **_sensitivity(operating_point.model, operating_metrics, cost_ratio),
     )
@@ -366,6 +376,7 @@ def present_unavailable(unit: DisabledUnit, *, cost_ratio: float) -> Presentatio
         outcome_line=None,
         model_line=f"Model: {name}.",
         caveats=_caveats(cost_ratio),
+        model_card_title=model_card_title(unit.model),
     )
 
 

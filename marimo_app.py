@@ -122,52 +122,49 @@ def _(BUILD_COMMIT, inputs, mo, presentation, scoring_banner):
     def _lines(lines):
         return mo.vstack([mo.plain_text(line) for line in lines if line], gap=0.25)
 
+    # One column, and long lines wrap, so the page keeps its width whatever is rendered.
+    _wrap = mo.Html("<style>pre.text-xs{white-space:pre-wrap;overflow-wrap:anywhere}</style>")
+
     mo.vstack(
         [
+            _wrap,
             mo.md("# Machine failure check"),
             *([mo.callout(mo.plain_text(scoring_banner), kind="danger")] if scoring_banner else []),
             mo.md("Enter the six readings from one machine."),
-            mo.hstack(
+            mo.vstack(list(inputs.elements.values()), gap=0.5),
+            mo.callout(mo.md(f"## {presentation.headline}"), kind=_kinds[presentation.state]),
+            _lines(
                 [
-                    mo.vstack(list(inputs.elements.values()), gap=0.5),
-                    mo.vstack(
-                        [
-                            mo.callout(
-                                mo.md(f"## {presentation.headline}"),
-                                kind=_kinds[presentation.state],
-                            ),
-                            _lines(
-                                [
-                                    presentation.failure_risk,
-                                    presentation.flag_line,
-                                    presentation.flag_line_note,
-                                    presentation.range_note,
-                                ]
-                            ),
-                            _lines(presentation.meaning),
-                            _lines(presentation.refusal),
-                            _lines([presentation.outcome_line]),
-                            *(
-                                [
-                                    mo.accordion(
-                                        {
-                                            presentation.sensitivity_title: _lines(
-                                                presentation.sensitivity_lines()
-                                            )
-                                        }
-                                    )
-                                ]
-                                if presentation.sensitivity
-                                else []
-                            ),
-                        ]
-                    ),
-                ],
-                align="start",
-                gap=3,
+                    presentation.failure_risk,
+                    presentation.flag_line,
+                    presentation.flag_line_note,
+                    presentation.range_note,
+                ]
+            ),
+            _lines(presentation.refusal),
+            _lines([presentation.outcome_line]),
+            *(
+                [mo.accordion({presentation.meaning_title: _lines(presentation.meaning)})]
+                if presentation.meaning
+                else []
+            ),
+            *(
+                [
+                    mo.accordion(
+                        {presentation.sensitivity_title: _lines(presentation.sensitivity_lines())}
+                    )
+                ]
+                if presentation.sensitivity
+                else []
             ),
             mo.md("---"),
-            _lines([presentation.model_line, *presentation.caveats]),
+            mo.accordion(
+                {
+                    presentation.model_card_title: _lines(
+                        [presentation.model_line, *presentation.caveats]
+                    )
+                }
+            ),
             mo.md(f"<small>Build commit: `{BUILD_COMMIT}`</small>"),
         ]
     )

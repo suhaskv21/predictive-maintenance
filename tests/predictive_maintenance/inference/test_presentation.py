@@ -233,13 +233,22 @@ def test_every_state_carries_the_caveats_and_names_the_model(state: str) -> None
     text = "\n".join(all_states()[state].lines())
     for caveat in (
         "Estimated from historical readings.",
-        "Synthetic benchmark data, not your plant.",
         "Assumes one missed failure costs as much as 10 false alarms. "
         "This is an assumption, not a measurement.",
         "An aid for prioritising inspections, not a guarantee.",
         "Model: Random forest (unweighted).",
     ):
         assert caveat in text
+
+
+@pytest.mark.parametrize("state", list(all_states()))
+def test_no_state_says_the_data_is_a_synthetic_benchmark(state: str) -> None:
+    assert "ynthetic" not in "\n".join(all_states()[state].lines())
+
+
+@pytest.mark.parametrize("state", list(all_states()))
+def test_every_state_titles_its_model_card_with_the_model_name(state: str) -> None:
+    assert all_states()[state].model_card_title == "Model card: Random forest (unweighted)"
 
 
 def test_the_cost_ratio_caveat_follows_the_config_value() -> None:
@@ -500,3 +509,10 @@ def test_extreme_row_figures_never_read_as_certainty() -> None:
     row = sensitivity(extreme).sensitivity[-1]
     assert "more than 99 are flagged" in row.text and "fewer than 1 of every 1,000" in row.text
     assert banned_wording_in(row.text) == []
+
+
+def test_the_meaning_lines_have_an_expander_title_only_when_there_are_lines() -> None:
+    assert show(assessment(0.4, True)).meaning_title == "What this Flag means"
+    assert show(assessment(0.03, False)).meaning_title == "What this Flag means"
+    assert show(REFUSED).meaning_title is None
+    assert show(REFUSED).meaning == ()
