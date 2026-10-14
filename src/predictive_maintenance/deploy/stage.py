@@ -1,7 +1,7 @@
 """Stage the entry notebook for the WebAssembly export (ADR 0010, ADR 0012).
 
 ``python -m predictive_maintenance.deploy.stage`` writes a build directory that
-``marimo export html-wasm`` turns into the site: the notebook stamped with its build commit and a
+``marimo export html-wasm`` turns into the site: the notebook stamped with its build release and a
 PEP 723 header naming the local wheel, the wheel itself, and a ``public/`` folder holding the
 unit's five files and the config. marimo copies ``public/`` into the site and installs the wheel
 in the browser; the notebook fetches the files from there (``inference.site``).
@@ -17,21 +17,21 @@ from predictive_maintenance.config import DEFAULT_CONFIG_PATH, PROJECT_ROOT
 from predictive_maintenance.training.train import DEFAULT_MODEL
 from predictive_maintenance.training.unit import unit_paths
 
-COMMIT_PLACEHOLDER = 'BUILD_COMMIT = "local run"'
-_COMMIT = re.compile(r"[0-9A-Za-z._-]+")
+RELEASE_PLACEHOLDER = 'BUILD_RELEASE = "local run"'
+_RELEASE = re.compile(r"[0-9A-Za-z._-]+")
 
 
-def stamp_notebook(source: str, *, wheel_name: str, commit: str) -> str:
-    """The notebook text with the wheel header prepended and ``commit`` as its build commit.
+def stamp_notebook(source: str, *, wheel_name: str, release: str) -> str:
+    """The notebook text with the wheel header prepended and ``release`` as its build release.
 
     Raises:
-        ValueError: if ``commit`` is not a plain identifier, or the notebook does not contain the
-            ``BUILD_COMMIT`` placeholder exactly once.
+        ValueError: if ``release`` is not a plain identifier, or the notebook does not contain the
+            ``BUILD_RELEASE`` placeholder exactly once.
     """
-    if _COMMIT.fullmatch(commit) is None:
-        raise ValueError(f"commit {commit!r} is not a plain identifier")
-    if source.count(COMMIT_PLACEHOLDER) != 1:
-        raise ValueError(f"the notebook must contain exactly one {COMMIT_PLACEHOLDER!r}")
+    if _RELEASE.fullmatch(release) is None:
+        raise ValueError(f"release {release!r} is not a plain identifier")
+    if source.count(RELEASE_PLACEHOLDER) != 1:
+        raise ValueError(f"the notebook must contain exactly one {RELEASE_PLACEHOLDER!r}")
     header = (
         "# /// script\n"
         '# requires-python = ">=3.12"\n'
@@ -40,7 +40,7 @@ def stamp_notebook(source: str, *, wheel_name: str, commit: str) -> str:
         "# ]\n"
         "# ///\n\n"
     )
-    return header + source.replace(COMMIT_PLACEHOLDER, f'BUILD_COMMIT = "{commit}"')
+    return header + source.replace(RELEASE_PLACEHOLDER, f'BUILD_RELEASE = "{release}"')
 
 
 def stage_site(
@@ -49,7 +49,7 @@ def stage_site(
     models_dir: Path,
     config_path: Path,
     wheel: Path,
-    commit: str,
+    release: str,
     model: str,
     build_dir: Path,
 ) -> Path:
@@ -58,7 +58,7 @@ def stage_site(
     Raises:
         FileNotFoundError: if a file of the unit is missing.
     """
-    stamped = stamp_notebook(notebook.read_text(), wheel_name=wheel.name, commit=commit)
+    stamped = stamp_notebook(notebook.read_text(), wheel_name=wheel.name, release=release)
     unit = unit_paths(models_dir, model)
     files = (*unit.sidecars, unit.manifest)
     for path in files:
@@ -85,7 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--models", type=Path, default=PROJECT_ROOT / "models")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--wheel", type=Path, required=True)
-    parser.add_argument("--commit", required=True)
+    parser.add_argument("--release", required=True)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--build-dir", type=Path, default=PROJECT_ROOT / "build" / "site-src")
     args = parser.parse_args(argv)
@@ -94,7 +94,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         models_dir=args.models,
         config_path=args.config,
         wheel=args.wheel,
-        commit=args.commit,
+        release=args.release,
         model=args.model,
         build_dir=args.build_dir,
     )

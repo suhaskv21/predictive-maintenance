@@ -41,7 +41,7 @@ marimo-app:
 site:
     rm -rf dist build
     uv build --wheel
-    uv run python -m predictive_maintenance.deploy.stage --wheel dist/*.whl --commit "$(git rev-parse --short=7 HEAD)"
+    uv run python -m predictive_maintenance.deploy.stage --wheel dist/*.whl --release "$(git describe --tags --always)"
     uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run
     uv run python -m predictive_maintenance.deploy.contract --wheel dist/*.whl --site build/site
 

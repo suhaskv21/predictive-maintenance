@@ -47,5 +47,5 @@ resamples, percentile 95 % intervals):
 the CV figures for 5, 10 and 20 sit only under `sensitivity` (`source: cv_train`) for the ticket 09 expander. The Flag meaning
 reads "Figures from held-out test data." (the glossary label for `holdout`); intervals are in the file and README, not the screen.
 
-**Not done here:** the live site still shows CV figures until the next `TRIGGER_CI` push (this work is uncommitted). The report
+**Not done here:** the live site still shows CV figures until the next `TRIGGER_DEPLOY` push (this work is uncommitted). The report
 must be committed in the same push as the workflow change, or the new check step fails with "No such file".

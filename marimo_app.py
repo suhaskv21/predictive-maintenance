@@ -42,10 +42,10 @@ def _():
 
 @app.cell
 def _():
-    # The build workflow stamps the commit the site was built from (ADR 0012).
-    BUILD_COMMIT = "local run"
+    # The build workflow stamps the release the site was built from (ADR 0012).
+    BUILD_RELEASE = "local run"
     MODEL = "random_forest_unweighted"
-    return BUILD_COMMIT, MODEL
+    return BUILD_RELEASE, MODEL
 
 
 @app.cell
@@ -154,7 +154,7 @@ def _(
 
 
 @app.cell
-def _(BUILD_COMMIT, example_picker, examples, inputs, mo, presentation, scoring_banner):
+def _(BUILD_RELEASE, example_picker, examples, inputs, mo, presentation, scoring_banner):
     _kinds = {
         "model_unavailable": "danger",
     }
@@ -240,7 +240,7 @@ def _(BUILD_COMMIT, example_picker, examples, inputs, mo, presentation, scoring_
                     )
                 }
             ),
-            mo.md(f"<small>Build commit: `{BUILD_COMMIT}`</small>"),
+            mo.md(f"<small>Release: `{BUILD_RELEASE}`</small>"),
         ]
     )
     return

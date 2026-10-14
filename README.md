@@ -6,11 +6,6 @@
 
 **Live app: <https://suhaskv21.github.io/predictive-maintenance/>**
 
-The first load is heavy: the page downloads a Python runtime into your browser, which took about 19 s to
-93 s where it was measured, and about 30 s in a manual cellular-network check (see [Browser evidence](#browser-evidence)). The footer shows the commit the
-site was built from. The site is rebuilt only on request (see [Deployment](#deployment-provider-and-limitations)),
-so it can lag the `master` branch.
-
 ## Problem, users and outcome
 
 A maintenance engineer has one machine's sensor values (product Type, air and process temperature,
@@ -18,15 +13,12 @@ rotational speed, torque, tool wear) and must decide whether to inspect it now. 
 **Failure risk** for that **Reading**, from the AI4I 2020 benchmark data, and raises a **Flag** ("Inspect")
 when the risk reaches the model's own **Operating threshold**. The target is the recorded `Machine failure`.
 It is an aid for prioritising inspections, not a guarantee.
-on any plant.
 
 **How predictions reach engineers.** The engineer opens the URL, enters the six inputs on one screen, and
 reads a headline: *Inspect*, *No inspection flagged*, or *Not assessed* (an input is missing or impossible,
 so no risk and no Flag are given, and the screen says that this does not mean the machine is fine). Beside
-the headline are the Failure risk ("rough estimate, not calibrated"), the model's Flag line, plain words
-for what a Flag means (how many real failures are flagged, how many Flags are real, how many Readings per
-1,000 are flagged) and always-on caveats. Pushing assessments into a work-order system is a production
-addition and is not built ([system design](docs/design/system-design.md)).
+the headline are the Failure risk ("rough estimate, not calibrated"), 
+description of what the "Flag" means and always-on caveats. 
 
 **A useful outcome** is that engineers inspect the machines most likely to fail first, accept that some
 inspections will find nothing, and never read "No inspection flagged" or "Not assessed" as a clearance.
@@ -92,7 +84,7 @@ threshold, so more Readings are flagged and fewer failures are missed, at the pr
 **The 10:1 ratio is an assumption, not a measurement.** The dataset has no costs, and maintenance management
 should replace it with the plant's real figure (`default_cost_ratio` in `configs/default.toml`, then
 retrain). The Flag meaning shown in the app quotes these Holdout figures, labelled as held-out test data, from the
-first site build made after the report was committed; the footer's build commit tells you which build
+first site build made after the report was committed; the footer's release tag tells you which build
 you are looking at.
 
 ## Setup and reproduction
@@ -205,14 +197,14 @@ Dashboards, alerting and the health tab are designed in ADRs 0008 to 0010 and de
 | **Per-browser state.** Nothing persists and nothing is shared, so there is no log and no cross-user monitoring. | The monitoring above needs a server-side log; it is described, not built. |
 | **Stale thresholds when pins move.** The Operating threshold depends on library versions, so a changed pin can move scores against a fixed line. | Training re-derives the threshold and fails if it differs from the accepted 0.218 by more than 0.0005. The manifest records versions. Any figure that moves needs a new ADR (the ADR 0011 precedent). |
 | **Few browsers checked.** One automated Chromium run and one manual Chrome and Firefox check. | See [Browser evidence](#browser-evidence). Treat Safari and other devices as untested. |
-| **Stale site.** The site is rebuilt only for a head commit containing `TRIGGER_CI`, so it can lag `master`. | The footer shows the build commit; the last commit before submission carries the token and the checklist compares the two. |
+| **Stale site.** The site is rebuilt only for a head commit containing `TRIGGER_DEPLOY`, so it can lag `master`. | The footer shows the release tag (v0.N), whose GitHub release points at the built commit; the last commit before submission carries the token and the checklist compares that commit with `master`. |
 | **Assumed cost, synthetic data.** The 10:1 ratio is an assumption and the data is a benchmark. | Both are stated on every screen. Replace the ratio with the plant's and retrain before real use. |
 
 ### Deployment provider and limitations
 
 GitHub Pages, serving a marimo WebAssembly export, built by `.github/workflows/pages.yml` (locked sync, full
 check, train, Holdout hash check, wheel, export, contract checks, deploy). It runs only when the head commit
-message contains `TRIGGER_CI` or on manual dispatch; `ci.yml` runs the checks on every push. Limits: the
+message contains `TRIGGER_DEPLOY` or on manual dispatch, and publishes a GitHub release (v0.1, v0.2, ...) whose tag the footer shows; `ci.yml` runs the checks on every push. Limits: the
 heavy first load and runtime dependency above, public model files, no server-side state or logs, and the
 spec's "equivalent service" is read here as covering a static site that runs Python in the browser, which a
 grader expecting a server-side app (the spec names Streamlit Community Cloud) could read differently.
@@ -258,7 +250,8 @@ ADRs 0008 to 0010 describe a larger system than ships; where they differ, ADR 00
 
 ## Documents
 
-- [`TECHNICAL_SPEC.md`](TECHNICAL_SPEC.md): requirements. [`GLOSSARY.md`](GLOSSARY.md): terms (Reading, Flag,
-  Failure risk, Operating threshold, Cost ratio, Holdout).
+- [`TECHNICAL_SPEC.md`](TECHNICAL_SPEC.md): requirements.
+- [`GLOSSARY.md`](GLOSSARY.md): terms (Reading, Flag, Failure risk, Operating threshold, Cost ratio, Holdout).
+- [`configs/`](configs/README.md): settings.
 - [`docs/adr/`](docs/adr/): every non-trivial decision with its evidence.
-- [`reports/`](reports/README.md): the committed Holdout result. [`configs/`](configs/README.md): settings.
+- [`reports/`](reports/README.md): the committed Holdout result.

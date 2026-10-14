@@ -56,7 +56,7 @@ which gains **Holdout** with this ADR.
 - **One-screen app** at the repository root, `marimo_app.py`, beside `streamlit_app.py`: input form,
   the three headline states (Inspect, No inspection flagged, Not assessed), the Failure risk line, the Flag
   meaning, the always-on caveats, Example readings from the train partition, and the 5:1, 10:1 and 20:1
-  sensitivity expander (metrics only). The build commit is shown in the footer. It imports no logic.
+  sensitivity expander (metrics only). The release tag is shown in the footer. It imports no logic.
 - **`pages.yml`**, exporting with `marimo export html-wasm` to GitHub Pages, with the contract items that are
   cheap: unit files and manifest present, a re-derived threshold within tolerance of the accepted figure, site
   size within budget, and a test that training does not read the holdout.
@@ -88,7 +88,7 @@ ADR 0009's wording rules, the Refused-reading screen and the five-file unit are 
   0005); the README treats it as retraining. If CI and local builds are not bit-identical, switch the check from
   file bytes to a fingerprint (pinned versions plus scores on fixed train Readings within 1e-9), never to a
   rescore.
-- **`pages.yml` runs only on request.** A push whose head commit message contains `TRIGGER_CI`, or
+- **`pages.yml` runs only on request.** A push whose head commit message contains `TRIGGER_DEPLOY`, or
   `workflow_dispatch`. No path filter, no pull-request trigger. `ci.yml` (`just check`) stays automatic on
   every push and pull request. The match is case-insensitive.
 - **The `streamlit` dependency moves to an optional extra** (its name is a ticket), so the wheel declares only
@@ -111,8 +111,8 @@ is the owner's step, needed by about hour 2:30.
 
 ### Order and stop rule
 0:00 this ADR, tickets, approved dependency and config edits; 0:30 training command; 1:30 `inference/`;
-2:15 entry notebook, `pages.yml`, first `TRIGGER_CI` push; 3:00 phone and Firefox cold test, fixes; 3:30
-holdout; 4:00 README and diagram; 4:45 final `TRIGGER_CI` commit and checklist.
+2:15 entry notebook, `pages.yml`, first `TRIGGER_DEPLOY` push; 3:00 phone and Firefox cold test, fixes; 3:30
+holdout; 4:00 README and diagram; 4:45 final `TRIGGER_DEPLOY` commit and checklist.
 If the live URL is not up by 3:15, cut in this order: the sensitivity expander, Example readings, the in-app
 golden check, diagram detail. **Never cut:** the live URL, the holdout, the banned-wording test, and a
 passing `just check`, shown before each claim of done.
@@ -121,9 +121,9 @@ passing `just check`, shown before each claim of done.
 - **ADRs 0008 to 0010 describe more than ships.** The health tab, the logs, the two extra models and the
   smoke test exist only as design. The README says so plainly and lists them under "not implemented"
   (spec §4.1.5). A reader of those ADRs should read this one.
-- **A stale site is possible.** `pages.yml` runs on request, so a source change pushed without `TRIGGER_CI`
-  leaves the live site and the README's numbers behind `master`. The footer shows the build commit, and the
-  last commit before submission must contain `TRIGGER_CI`, with "live site built from `master`'s HEAD" on the
+- **A stale site is possible.** `pages.yml` runs on request, so a source change pushed without `TRIGGER_DEPLOY`
+  leaves the live site and the README's numbers behind `master`. The footer shows the release tag (each release points at its commit), and the
+  last commit before submission must contain `TRIGGER_DEPLOY`, with "live site built from `master`'s HEAD" on the
   checklist. Only the head commit of a push is checked, so the token goes in the last commit pushed.
 - **A browser scoring difference would not fail the build**, because there is no Node smoke test. The in-app
   golden check shows it to a visitor, and the phone and Firefox run is the only browser evidence, as before.

@@ -9,7 +9,7 @@ from predictive_maintenance.deploy.stage import stage_site, stamp_notebook
 from predictive_maintenance.training.unit import unit_paths
 
 WHEEL = "predictive_maintenance-0.1.0-py3-none-any.whl"
-NOTEBOOK = 'import marimo\n\nBUILD_COMMIT = "local run"\nMODEL = "toy"\n'
+NOTEBOOK = 'import marimo\n\nBUILD_RELEASE = "local run"\nMODEL = "toy"\n'
 REPO_NOTEBOOK = Path(__file__).resolve().parents[3] / "marimo_app.py"
 
 
@@ -19,32 +19,32 @@ def header_block(text: str) -> str:
 
 
 def test_the_stamped_notebook_installs_the_local_wheel_from_a_pep_723_header() -> None:
-    stamped = stamp_notebook(NOTEBOOK, wheel_name=WHEEL, commit="abc1234")
+    stamped = stamp_notebook(NOTEBOOK, wheel_name=WHEEL, release="v0.3")
     assert stamped.startswith("# /// script\n")
     assert f'"predictive-maintenance @ ./dist/{WHEEL}"' in header_block(stamped)
-    assert stamped.endswith(NOTEBOOK.replace('"local run"', '"abc1234"'))
+    assert stamped.endswith(NOTEBOOK.replace('"local run"', '"v0.3"'))
 
 
-def test_the_stamped_notebook_shows_the_given_commit() -> None:
-    stamped = stamp_notebook(NOTEBOOK, wheel_name=WHEEL, commit="abc1234")
-    assert 'BUILD_COMMIT = "abc1234"' in stamped
+def test_the_stamped_notebook_shows_the_given_release() -> None:
+    stamped = stamp_notebook(NOTEBOOK, wheel_name=WHEEL, release="v0.3")
+    assert 'BUILD_RELEASE = "v0.3"' in stamped
     assert "local run" not in stamped
 
 
-def test_stamping_refuses_a_notebook_without_the_commit_placeholder() -> None:
-    with pytest.raises(ValueError, match="BUILD_COMMIT"):
-        stamp_notebook("import marimo\n", wheel_name=WHEEL, commit="abc1234")
+def test_stamping_refuses_a_notebook_without_the_release_placeholder() -> None:
+    with pytest.raises(ValueError, match="BUILD_RELEASE"):
+        stamp_notebook("import marimo\n", wheel_name=WHEEL, release="v0.3")
 
 
-@pytest.mark.parametrize("commit", ['a"b', "a\nb", "", "a b"])
-def test_stamping_refuses_a_commit_that_is_not_a_plain_identifier(commit: str) -> None:
-    with pytest.raises(ValueError, match="commit"):
-        stamp_notebook(NOTEBOOK, wheel_name=WHEEL, commit=commit)
+@pytest.mark.parametrize("release", ['a"b', "a\nb", "", "a b"])
+def test_stamping_refuses_a_release_that_is_not_a_plain_identifier(release: str) -> None:
+    with pytest.raises(ValueError, match="release"):
+        stamp_notebook(NOTEBOOK, wheel_name=WHEEL, release=release)
 
 
 def test_the_repository_notebook_can_be_stamped() -> None:
-    stamped = stamp_notebook(REPO_NOTEBOOK.read_text(), wheel_name=WHEEL, commit="abc1234")
-    assert 'BUILD_COMMIT = "abc1234"' in stamped
+    stamped = stamp_notebook(REPO_NOTEBOOK.read_text(), wheel_name=WHEEL, release="v0.3")
+    assert 'BUILD_RELEASE = "v0.3"' in stamped
 
 
 def make_inputs(root: Path) -> dict[str, Path]:
@@ -71,12 +71,12 @@ def test_staging_lays_out_the_notebook_wheel_unit_and_config_for_the_export(tmp_
         models_dir=inputs["models"],
         config_path=inputs["config"],
         wheel=inputs["wheel"],
-        commit="abc1234",
+        release="v0.3",
         model="toy",
         build_dir=build,
     )
     assert notebook == build / "marimo_app.py"
-    assert 'BUILD_COMMIT = "abc1234"' in notebook.read_text()
+    assert 'BUILD_RELEASE = "v0.3"' in notebook.read_text()
     assert (build / "dist" / WHEEL).read_bytes() == b"wheel"
     unit = unit_paths(build / "public" / "models", "toy")
     assert all(path.is_file() for path in (*unit.sidecars, unit.manifest))
@@ -90,7 +90,7 @@ def test_staging_ships_only_the_five_files_of_the_unit(tmp_path: Path) -> None:
         models_dir=inputs["models"],
         config_path=inputs["config"],
         wheel=inputs["wheel"],
-        commit="abc1234",
+        release="v0.3",
         model="toy",
         build_dir=tmp_path / "build",
     )
@@ -108,7 +108,7 @@ def test_staging_fails_when_a_unit_file_is_missing(tmp_path: Path) -> None:
             models_dir=inputs["models"],
             config_path=inputs["config"],
             wheel=inputs["wheel"],
-            commit="abc1234",
+            release="v0.3",
             model="toy",
             build_dir=tmp_path / "build",
         )
@@ -124,7 +124,7 @@ def test_staging_starts_from_an_empty_build_directory(tmp_path: Path) -> None:
         models_dir=inputs["models"],
         config_path=inputs["config"],
         wheel=inputs["wheel"],
-        commit="abc1234",
+        release="v0.3",
         model="toy",
         build_dir=build,
     )
@@ -147,8 +147,8 @@ def test_the_command_stages_from_the_arguments(tmp_path: Path) -> None:
             str(inputs["config"]),
             "--wheel",
             str(inputs["wheel"]),
-            "--commit",
-            "abc1234",
+            "--release",
+            "v0.3",
             "--model",
             "toy",
             "--build-dir",

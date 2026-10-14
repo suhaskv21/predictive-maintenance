@@ -36,7 +36,7 @@ flowchart LR
     end
 
     subgraph SRV["3. Serving"]
-        BUILD["pages.yml (on TRIGGER_CI):<br/>train, check report hash, build wheel,<br/>export marimo WebAssembly site,<br/>contract checks"]:::built
+        BUILD["pages.yml (on TRIGGER_DEPLOY):<br/>train, check report hash, build wheel,<br/>export marimo WebAssembly site,<br/>contract checks"]:::built
         PAGES["GitHub Pages<br/>static site, unit published beside it"]:::built
         INF["inference/ in the browser (Pyodide):<br/>load and verify unit, assess one Reading,<br/>Presentation (the words)"]:::built
         APP["marimo_app.py<br/>one screen, imports no logic"]:::built

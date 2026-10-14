@@ -9,7 +9,7 @@ Parent: `.scratch/five-hour-submission/spec.md`.
 **Status:** resolved
 
 - [x] Owner prerequisite, needed before the first deploy: enable Pages with source GitHub Actions (Settings, Pages). The agent states this clearly and stops if the deploy step reports Pages is disabled.
-- [x] The workflow runs only when the head commit message contains `TRIGGER_CI` (any case) or on manual dispatch; no path filter and no pull-request trigger. The existing check workflow is untouched and stays automatic.
+- [x] The workflow runs only when the head commit message contains `TRIGGER_DEPLOY` (any case) or on manual dispatch; no path filter and no pull-request trigger. The existing check workflow is untouched and stays automatic.
 - [x] Steps: locked sync; full check; train; build the wheel; export the site as a directory in WebAssembly mode; contract checks; upload and deploy. Pages write permission only on the deploy job; read-only elsewhere.
 - [x] Contract checks fail the build on: a missing unit file or manifest mismatch; a re-derived threshold outside tolerance of the accepted figure; a site over the configured budget; training reading the Holdout; wheel dependencies not bundled in Pyodide.
 - [x] The footer shows the deployed build commit.
@@ -19,7 +19,7 @@ Parent: `.scratch/five-hour-submission/spec.md`.
 
 ## Comments
 
-Implemented (not committed): `.github/workflows/pages.yml` (push + dispatch; `build` job gated on `TRIGGER_CI` in the head commit
+Implemented (not committed): `.github/workflows/pages.yml` (push + dispatch; `build` job gated on `TRIGGER_DEPLOY` in the head commit
 or dispatch, `contents: read`; `deploy` job alone has `pages: write` and `id-token: write`), `deploy/contract.py` (unit files and
 manifest via `load_unit`, unit threshold within tolerance of `[deploy]` accepted figure, site size against `site_budget_mb`,
 wheel `Requires-Dist` names only Pyodide-bundled packages), `deploy/stage.py` (stamps `BUILD_COMMIT` and the PEP 723 wheel header

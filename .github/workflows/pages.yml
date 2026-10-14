@@ -1,8 +1,9 @@
 name: Pages
 
-# Runs only on request (ADR 0012): a pushed head commit whose message contains TRIGGER_CI (the
+# Runs only on request (ADR 0012): a pushed head commit whose message contains TRIGGER_DEPLOY (the
 # match is case-insensitive), or manual dispatch. No path filter and no pull-request trigger.
-# The automatic checks stay in ci.yml.
+# The automatic checks stay in ci.yml. Each run takes the next release tag (v0.1, v0.2, ...), shows
+# it in the site footer, and publishes a GitHub release for it once the site has deployed.
 on:
   push:
   workflow_dispatch:
@@ -10,13 +11,30 @@ on:
 permissions:
   contents: read
 
+env:
+  TAG_PREFIX: v0.
+
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
+  # The concurrency group serialises runs, so the next number cannot be taken twice. Every later
+  # job is skipped when this one is.
+  version:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'TRIGGER_DEPLOY')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - id: next
+        run: |
+          last=$(git ls-remote --tags --refs "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" "refs/tags/${TAG_PREFIX}*" \
+            | sed "s|.*refs/tags/${TAG_PREFIX}||" | grep -E '^[0-9]+$' | sort -n | tail -n 1)
+          echo "tag=${TAG_PREFIX}$(( ${last:-0} + 1 ))" >> "$GITHUB_OUTPUT"
+
   build:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'TRIGGER_CI')
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +82,7 @@ jobs:
       - name: Stage the notebook, wheel, unit and config
         run: |
           uv run python -m predictive_maintenance.deploy.stage \
-            --wheel dist/*.whl --commit "${GITHUB_SHA::7}"
+            --wheel dist/*.whl --release "${{ needs.version.outputs.tag }}"
 
       - name: Export the site (WebAssembly, as a directory)
         run: uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run
@@ -96,3 +114,15 @@ jobs:
       # (Settings, Pages).
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  release:
+    needs: [version, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release the footer shows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes

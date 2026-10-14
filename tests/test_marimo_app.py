@@ -174,11 +174,11 @@ def test_the_model_name_and_caveats_sit_in_a_model_card_expander(flagging_dir: P
         assert presentation.model_card_title in html
 
 
-def test_every_state_shows_the_caveats_and_the_build_commit(flagging_dir: Path) -> None:
+def test_every_state_shows_the_caveats_and_the_release(flagging_dir: Path) -> None:
     for reading in (READING, {**READING, TORQUE: None}):
         html, presentation = run(flagging_dir, reading)
         assert all(caveat in html for caveat in presentation.caveats)
-        assert "Build commit" in html
+        assert "Release:" in html
 
 
 def test_a_fresh_unit_shows_no_scoring_check_banner(flagging_dir: Path) -> None:
