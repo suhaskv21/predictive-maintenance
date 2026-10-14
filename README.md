@@ -198,8 +198,8 @@ Dashboards, alerting and the health tab are designed in ADRs 0008 to 0010 and de
 
 | Risk | Mitigation |
 |---|---|
-| **Heavy first load.** About 41 MB of runtime wheels plus the model. 19 s to the first cell in an earlier Chrome run, and about 93 s to first render in a headless run behind a TLS-inspecting proxy. | The owner's rule is to reconsider the host if a second tester sees over 60 s. The next hosts are molab, then Streamlit Community Cloud (ADR 0009, 0010). |
-| **Dependence on Pyodide's host.** The runtime and packages load from their own host at run time. If it is down, the app does not load. | Check the URL before submission and periodically. A server-hosted fallback is described in ADR 0010; the repository has only an empty `streamlit_app.py` stub, so it is not a working fallback. |
+| **Heavy first load.** About 41 MB of runtime wheels plus the model. 19 s to the first cell in an earlier Chrome run, and about 93 s to first render in a headless run behind a TLS-inspecting proxy. | The owner's rule is to reconsider the host if a second tester sees over 60 s. The next host is molab (ADR 0010). |
+| **Dependence on Pyodide's host.** The runtime and packages load from their own host at run time. If it is down, the app does not load. | Check the URL before submission and periodically. A server-hosted fallback is described in ADR 0010 but not built. |
 | **Pyodide moves.** A marimo upgrade changes the bundled library versions. | `marimo` and the libraries are pinned exactly to marimo 0.25.1's Pyodide; the build checks the wheel names only Pyodide-bundled packages; the app disables a unit whose manifest library versions differ from the running ones and shows "model unavailable" instead of scoring. Reading the versions from the exported site is deferred. |
 | **Public model files.** The Pipeline is published with the site and anyone can download it. | Acceptable for a model trained on a public synthetic benchmark. Real plant data would need a hosted inference service with access control (dashed in the diagram). |
 | **Per-browser state.** Nothing persists and nothing is shared, so there is no log and no cross-user monitoring. | The monitoring above needs a server-side log; it is described, not built. |
@@ -215,7 +215,7 @@ check, train, Holdout hash check, wheel, export, contract checks, deploy). It ru
 message contains `TRIGGER_CI` or on manual dispatch; `ci.yml` runs the checks on every push. Limits: the
 heavy first load and runtime dependency above, public model files, no server-side state or logs, and the
 spec's "equivalent service" is read here as covering a static site that runs Python in the browser, which a
-grader expecting a server-side Streamlit app could read differently.
+grader expecting a server-side app (the spec names Streamlit Community Cloud) could read differently.
 
 ## Browser evidence
 

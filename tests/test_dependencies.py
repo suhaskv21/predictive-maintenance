@@ -14,10 +14,8 @@ def test_declared_dependencies_name_only_pyodide_bundled_packages() -> None:
     assert names <= PYODIDE_BUNDLED, sorted(names - PYODIDE_BUNDLED)
 
 
-def test_streamlit_is_an_optional_extra_not_a_main_dependency() -> None:
-    assert "streamlit" not in {requirement_name(r) for r in PYPROJECT["project"]["dependencies"]}
-    extra = PYPROJECT["project"]["optional-dependencies"]["streamlit"]
-    assert {requirement_name(r) for r in extra} == {"streamlit"}
+def test_no_optional_dependencies_are_declared() -> None:
+    assert "optional-dependencies" not in PYPROJECT["project"]
 
 
 def test_marimo_is_pinned_exactly_in_the_dev_group() -> None:

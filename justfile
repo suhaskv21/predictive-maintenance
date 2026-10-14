@@ -18,9 +18,6 @@ typecheck:
 
 check: lint typecheck test
 
-app:
-    uv run --extra streamlit streamlit run streamlit_app.py
-
 train:
     uv run python -m predictive_maintenance.training.train
 

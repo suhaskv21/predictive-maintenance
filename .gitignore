@@ -32,4 +32,3 @@ data/processed/
 
 # Local env / secrets
 .env
-.streamlit/secrets.toml
