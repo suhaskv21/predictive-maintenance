@@ -16,6 +16,7 @@ from typing import Any, Literal
 from predictive_maintenance.evaluation.threshold import OperatingPoint
 from predictive_maintenance.inference.artifact import DisabledUnit
 from predictive_maintenance.inference.assessment import Assessment
+from predictive_maintenance.inference.golden import GoldenResult
 from predictive_maintenance.training.unit import ratio_key
 
 State = Literal["inspect", "no_inspection_flagged", "not_assessed", "model_unavailable"]
@@ -55,6 +56,12 @@ UNAVAILABLE_NOTICE = (
     "No risk or Flag is given. This does not mean the machine is fine. Try again later; until "
     "then treat this machine as unassessed."
 )
+GOLDEN_FAILED_NOTICE = (
+    "Scoring check failed. The stored test scores of this model could not be reproduced here, "
+    "so the Failure risk shown below may be wrong. Do not rely on it until this is resolved."
+)
+GOLDEN_WITHHELD = "details withheld"
+GOLDEN_SHOWN = 3  # differences quoted in the banner; the rest are counted
 FLAG_LINE_NOTE = "A risk within a percent of this line can go either way."
 OUTCOME_SUFFIX = "This Reading was in the training data, so agreement proves nothing."
 
@@ -264,3 +271,17 @@ def present_unavailable(unit: DisabledUnit, *, cost_ratio: float) -> Presentatio
         model_line=f"Model: {name}.",
         caveats=_caveats(cost_ratio),
     )
+
+
+def golden_banner(result: GoldenResult) -> str | None:
+    """The failure banner for a failed golden check, or None when it passed."""
+    if result.passed:
+        return None
+    # A difference can quote an arbitrary exception, so each is shown only if it passes the scan.
+    shown = [
+        line.rstrip(". ") if not banned_wording_in(line) else GOLDEN_WITHHELD
+        for line in result.differences[:GOLDEN_SHOWN]
+    ]
+    rest = len(result.differences) - len(shown)
+    detail = "; ".join(shown) + (f"; and {rest} more" if rest > 0 else "")
+    return f"{GOLDEN_FAILED_NOTICE} {detail}."

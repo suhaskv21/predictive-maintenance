@@ -11,12 +11,14 @@ from predictive_maintenance.inference.assessment import (
     Assessment,
     MissingInput,
 )
+from predictive_maintenance.inference.golden import GoldenResult
 from predictive_maintenance.inference.presentation import (
     BANNED_WORDING,
     Presentation,
     banned_wording_in,
     example_outcome_line,
     flag_line_text,
+    golden_banner,
     present,
     present_unavailable,
     risk_text,
@@ -303,3 +305,47 @@ def test_the_scanner_does_not_flag_innocent_text(sample: str) -> None:
 
 def test_every_banned_phrase_is_listed_once() -> None:
     assert len({name for name, _ in BANNED_WORDING}) == len(BANNED_WORDING)
+
+
+# --- golden check banner -------------------------------------------------------------------------
+
+GOLDEN_FAILED = GoldenResult(differences=("Reading 2: stored score 0.25, scored 0.5",))
+
+
+def test_a_passing_golden_check_shows_no_banner() -> None:
+    assert golden_banner(GoldenResult(differences=())) is None
+
+
+def test_a_failed_golden_check_says_results_may_be_wrong_and_names_the_difference() -> None:
+    banner = golden_banner(GOLDEN_FAILED)
+    assert banner is not None
+    assert banner.startswith("Scoring check failed.")
+    assert "Do not rely on it" in banner
+    assert "Reading 2: stored score 0.25, scored 0.5" in banner
+
+
+def test_a_failed_golden_check_banner_has_no_banned_wording() -> None:
+    banner = golden_banner(GOLDEN_FAILED)
+    assert banner is not None and banned_wording_in(banner) == []
+
+
+def test_the_banner_lists_three_differences_and_counts_the_rest() -> None:
+    many = GoldenResult(differences=tuple(f"Reading {n}: differs" for n in range(1, 6)))
+    banner = golden_banner(many)
+    assert banner is not None
+    assert "Reading 3: differs" in banner
+    assert "Reading 4" not in banner
+    assert "2 more" in banner
+
+
+def test_a_difference_with_banned_wording_is_not_shown() -> None:
+    banner = golden_banner(GoldenResult(differences=("ok, 100 % safe",)))
+    assert banner is not None
+    assert banned_wording_in(banner) == []
+    assert "safe" not in banner
+    assert "details withheld" in banner
+
+
+def test_the_banner_never_ends_in_a_doubled_full_stop() -> None:
+    banner = golden_banner(GoldenResult(differences=("cannot be read: KeyError('golden').",)))
+    assert banner is not None and not banner.endswith("..")

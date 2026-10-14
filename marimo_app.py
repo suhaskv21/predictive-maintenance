@@ -12,13 +12,20 @@ def _():
     from predictive_maintenance.data import schema
     from predictive_maintenance.inference.artifact import DisabledUnit, load_unit
     from predictive_maintenance.inference.assessment import assess
-    from predictive_maintenance.inference.presentation import present, present_unavailable
+    from predictive_maintenance.inference.golden import check_golden
+    from predictive_maintenance.inference.presentation import (
+        golden_banner,
+        present,
+        present_unavailable,
+    )
     from predictive_maintenance.inference.site import config_file, models_dir
 
     return (
         DisabledUnit,
         assess,
+        check_golden,
         config_file,
+        golden_banner,
         load_config,
         load_unit,
         mo,
@@ -55,6 +62,13 @@ def _(MODEL, config_path, load_config, load_unit, unit_dir):
     config = load_config(config_path)
     unit = load_unit(unit_dir, MODEL)
     return config, unit
+
+
+@app.cell
+def _(DisabledUnit, check_golden, golden_banner, unit):
+    # Scores the manifest's embedded train Readings once at load; None unless the check fails.
+    scoring_banner = None if isinstance(unit, DisabledUnit) else golden_banner(check_golden(unit))
+    return (scoring_banner,)
 
 
 @app.cell
@@ -97,7 +111,7 @@ def _(DisabledUnit, assess, config, present, present_unavailable, reading, unit)
 
 
 @app.cell
-def _(BUILD_COMMIT, inputs, mo, presentation):
+def _(BUILD_COMMIT, inputs, mo, presentation, scoring_banner):
     _kinds = {
         "inspect": "warn",
         "no_inspection_flagged": "neutral",
@@ -111,6 +125,7 @@ def _(BUILD_COMMIT, inputs, mo, presentation):
     mo.vstack(
         [
             mo.md("# Machine failure check"),
+            *([mo.callout(mo.plain_text(scoring_banner), kind="danger")] if scoring_banner else []),
             mo.md("Enter the six readings from one machine."),
             mo.hstack(
                 [
