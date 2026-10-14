@@ -13,8 +13,20 @@ def _():
     from predictive_maintenance.inference.artifact import DisabledUnit, load_unit
     from predictive_maintenance.inference.assessment import assess
     from predictive_maintenance.inference.presentation import present, present_unavailable
+    from predictive_maintenance.inference.site import config_file, models_dir
 
-    return DisabledUnit, assess, load_config, load_unit, mo, present, present_unavailable, schema
+    return (
+        DisabledUnit,
+        assess,
+        config_file,
+        load_config,
+        load_unit,
+        mo,
+        models_dir,
+        present,
+        present_unavailable,
+        schema,
+    )
 
 
 @app.cell
@@ -26,21 +38,22 @@ def _():
 
 
 @app.cell
-def _(mo):
-    models_dir = mo.notebook_dir() / "models"
-    return (models_dir,)
+def _(MODEL, mo, models_dir):
+    # Local run: the folders beside the notebook. Published site: downloaded from its public/ folder.
+    unit_dir = models_dir(mo.notebook_location(), MODEL)
+    return (unit_dir,)
 
 
 @app.cell
-def _(mo):
-    config_path = mo.notebook_dir() / "configs" / "default.toml"
+def _(config_file, mo):
+    config_path = config_file(mo.notebook_location())
     return (config_path,)
 
 
 @app.cell
-def _(MODEL, config_path, load_config, load_unit, models_dir):
+def _(MODEL, config_path, load_config, load_unit, unit_dir):
     config = load_config(config_path)
-    unit = load_unit(models_dir, MODEL)
+    unit = load_unit(unit_dir, MODEL)
     return config, unit
 
 

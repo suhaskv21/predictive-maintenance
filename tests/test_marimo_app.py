@@ -39,6 +39,7 @@ ALLOWED_IMPORTS = {
     "predictive_maintenance.inference.artifact",
     "predictive_maintenance.inference.assessment",
     "predictive_maintenance.inference.presentation",
+    "predictive_maintenance.inference.site",
 }
 
 
@@ -81,7 +82,7 @@ def write_constant_unit(models_dir: Path, *, threshold: float) -> None:
 
 
 def run(models_dir: Path, reading: dict[str, Any] | None = None) -> tuple[Any, Any]:
-    defs: dict[str, Any] = {"models_dir": models_dir}
+    defs: dict[str, Any] = {"unit_dir": models_dir}
     if reading is not None:
         defs["reading"] = reading
     outputs, definitions = load_app().app.run(defs=defs)

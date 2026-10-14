@@ -36,5 +36,13 @@ holdout-check:
 marimo-app:
     uv run marimo run marimo_app.py
 
+# Rehearse the Pages build into build/site (as pages.yml does); needs `just train` first.
+site:
+    rm -rf dist build
+    uv build --wheel
+    uv run python -m predictive_maintenance.deploy.stage --wheel dist/*.whl --commit "$(git rev-parse --short=7 HEAD)"
+    uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run
+    uv run python -m predictive_maintenance.deploy.contract --wheel dist/*.whl --site build/site
+
 notebook:
     uv run marimo edit notebooks

@@ -1,0 +1,88 @@
+name: Pages
+
+# Runs only on request (ADR 0012): a pushed head commit whose message contains TRIGGER_CI (the
+# match is case-insensitive), or manual dispatch. No path filter and no pull-request trigger.
+# The automatic checks stay in ci.yml.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'TRIGGER_CI')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+
+      # The sync and training times are recorded in the run summary. ADR 0012: if the cold sync
+      # exceeds 3 minutes, revisit the xgboost-cpu swap.
+      - name: Locked sync (timed)
+        run: |
+          start=$(date +%s)
+          uv sync --locked
+          seconds=$(( $(date +%s) - start ))
+          echo "- Cold \`uv sync --locked\`: ${seconds} s" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$seconds" -gt 180 ]; then
+            echo "::warning::Cold sync took ${seconds} s (over 3 minutes): revisit the XGBoost swap (ADR 0012)"
+            echo "- Over 3 minutes: revisit the XGBoost swap (ADR 0012)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Full check
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest
+
+      - name: Train (timed)
+        run: |
+          start=$(date +%s)
+          uv run python -m predictive_maintenance.training.train
+          echo "- Training step: $(( $(date +%s) - start )) s" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the wheel
+        run: uv build --wheel
+
+      - name: Stage the notebook, wheel, unit and config
+        run: |
+          uv run python -m predictive_maintenance.deploy.stage \
+            --wheel dist/*.whl --commit "${GITHUB_SHA::7}"
+
+      - name: Export the site (WebAssembly, as a directory)
+        run: uv run marimo export html-wasm build/site-src/marimo_app.py -o build/site --mode run
+
+      # Contract (ADR 0010, 0012). The unit's files, manifest and accepted threshold, the wheel's
+      # dependencies and the site size are checked by the contract command. Training re-derives the
+      # threshold and fails outside tolerance; its tests prove it never reads the Holdout.
+      - name: Contract - training never reads the Holdout
+        run: uv run pytest tests/predictive_maintenance/training/test_train.py -k "holdout"
+
+      - name: Contract - unit, threshold, wheel dependencies and site size
+        run: uv run python -m predictive_maintenance.deploy.contract --wheel dist/*.whl --site build/site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Fails with "Pages is not enabled" until the owner enables Pages with source GitHub Actions
+      # (Settings, Pages).
+      - id: deployment
+        uses: actions/deploy-pages@v4

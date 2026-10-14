@@ -24,6 +24,7 @@ just check         # lint, type-check, test
 | `just check` | All of the above |
 | `just app` | Run the Streamlit app locally |
 | `just marimo-app` | Run the one-screen marimo app locally (needs `just train` first) |
+| `just site` | Build the WebAssembly site into `build/site` as the Pages workflow does (needs `just train` first) |
 | `just notebook` | Open marimo notebook editor |
 
 Training/evaluation commands: _TODO once the pipeline exists._
