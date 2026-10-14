@@ -156,10 +156,14 @@ def _(
 @app.cell
 def _(BUILD_COMMIT, example_picker, examples, inputs, mo, presentation, scoring_banner):
     _kinds = {
-        "inspect": "warn",
-        "no_inspection_flagged": "neutral",
-        "not_assessed": "info",
         "model_unavailable": "danger",
+    }
+
+    # Orange for Inspect, grey for No inspection flagged, blue for Not assessed; errors keep a callout.
+    _tints = {
+        "inspect": "rgba(249, 115, 22, 0.20)",
+        "no_inspection_flagged": "rgba(100, 116, 139, 0.18)",
+        "not_assessed": "rgba(59, 130, 246, 0.18)",
     }
 
     def _lines(lines):
@@ -168,25 +172,52 @@ def _(BUILD_COMMIT, example_picker, examples, inputs, mo, presentation, scoring_
     # One column, and long lines wrap, so the page keeps its width whatever is rendered.
     _wrap = mo.Html("<style>pre.text-xs{white-space:pre-wrap;overflow-wrap:anywhere}</style>")
 
+    # A translucent slate tint reads as a subtle panel in both light and dark themes.
+    _input_panel = mo.vstack(
+        [
+            *([example_picker] if examples else []),
+            mo.md("## Enter the six readings from one machine."),
+            mo.vstack(list(inputs.elements.values()), gap=0.5),
+        ],
+        gap=0.75,
+    ).style(
+        {
+            "background-color": "rgba(100, 116, 139, 0.18)",
+            "border-radius": "12px",
+            "padding": "1rem 1.25rem",
+        }
+    )
+
+    _headline = mo.md(f"## {presentation.headline}")
+    _details = [
+        _lines(
+            [
+                presentation.failure_risk,
+                presentation.flag_line,
+                presentation.flag_line_note,
+                presentation.range_note,
+            ]
+        ),
+        _lines(presentation.refusal),
+        _lines([presentation.outcome_line]),
+    ]
+    _tint = _tints.get(presentation.state)
+    if _tint:
+        _result_panel = mo.vstack([_headline, *_details], gap=0.75).style(
+            {"background-color": _tint, "border-radius": "12px", "padding": "1rem 1.25rem"}
+        )
+    else:
+        _result_panel = mo.vstack(
+            [mo.callout(_headline, kind=_kinds[presentation.state]), *_details]
+        )
+
     mo.vstack(
         [
             _wrap,
             mo.md("# Machine failure check"),
             *([mo.callout(mo.plain_text(scoring_banner), kind="danger")] if scoring_banner else []),
-            *([example_picker] if examples else []),
-            mo.md("Enter the six readings from one machine."),
-            mo.vstack(list(inputs.elements.values()), gap=0.5),
-            mo.callout(mo.md(f"## {presentation.headline}"), kind=_kinds[presentation.state]),
-            _lines(
-                [
-                    presentation.failure_risk,
-                    presentation.flag_line,
-                    presentation.flag_line_note,
-                    presentation.range_note,
-                ]
-            ),
-            _lines(presentation.refusal),
-            _lines([presentation.outcome_line]),
+            _input_panel,
+            _result_panel,
             *(
                 [mo.accordion({presentation.meaning_title: _lines(presentation.meaning)})]
                 if presentation.meaning
