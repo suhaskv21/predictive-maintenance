@@ -196,8 +196,29 @@ def test_unavailable_model_is_an_error_state_without_numbers() -> None:
     assert shown.flag_line is None
 
 
-def test_a_cost_ratio_that_differs_from_the_unit_is_refused() -> None:
-    with pytest.raises(ValueError, match="cost ratio"):
+def test_a_cost_ratio_the_unit_has_no_threshold_for_is_refused() -> None:
+    with pytest.raises(ValueError, match="no threshold for cost ratio 7"):
+        present(assessment(0.4, True), POINT, METRICS, cost_ratio=7.0)
+
+
+def test_another_ratio_uses_its_own_threshold_and_its_cv_figures_after_the_holdout() -> None:
+    cv_figures = {**FIGURES, "recall": 0.9, "precision": 0.5, "flags_per_1000": 60.0}
+    holdout = {
+        **METRICS,
+        "source": "holdout",
+        "sensitivity": {"source": "cv_train", "ratios": {"10.0": FIGURES, "20.0": cv_figures}},
+    }
+    shown = present(assessment(0.4, True), POINT, holdout, cost_ratio=20.0)
+    assert shown.flag_line == "This model flags from about 15 %."
+    assert "Of every 100 machine failures, about 90 are flagged." in shown.meaning
+    assert "cross-validation on the training data" in shown.meaning[-1]
+    assert any("as much as 20 false alarms" in caveat for caveat in shown.caveats)
+    default = present(assessment(0.4, True), POINT, holdout, cost_ratio=10.0)
+    assert "held-out test data" in default.meaning[-1]
+
+
+def test_a_ratio_without_stored_figures_is_refused() -> None:
+    with pytest.raises(ValueError, match="no operating figures"):
         present(assessment(0.4, True), POINT, METRICS, cost_ratio=20.0)
 
 

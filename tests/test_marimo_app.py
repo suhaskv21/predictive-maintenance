@@ -101,9 +101,12 @@ def run(
 
 
 def run_app(
-    models_dir: Path, reading: dict[str, Any] | None = None, example: Any = None
+    models_dir: Path,
+    reading: dict[str, Any] | None = None,
+    example: Any = None,
+    extra: dict[str, Any] | None = None,
 ) -> tuple[Any, Any, Any]:
-    defs: dict[str, Any] = {"unit_dir": models_dir}
+    defs: dict[str, Any] = {"unit_dir": models_dir, **(extra or {})}
     if reading is not None:
         defs["reading"] = reading
     if example is not None:
@@ -216,6 +219,19 @@ def test_a_reading_inside_the_training_data_shows_no_note(tmp_path: Path) -> Non
     )
     assert presentation.state == "inspect"
     assert RANGE_PHRASE not in html
+
+
+def test_the_cost_ratio_dropdown_changes_the_flag(tmp_path: Path) -> None:
+    import marimo as mo
+
+    write_constant_unit(tmp_path, threshold=0.25)  # score 0.3: flagged at 10:1, not at 5:1 (0.375)
+    html, default = run(tmp_path, READING)
+    assert default.state == "inspect"  # the dropdown starts at the configured 10:1
+    assert "Cost ratio" in html
+    picker = mo.ui.dropdown({"5:1": 5.0, "10:1": 10.0}, value="5:1")
+    _, relaxed, _ = run_app(tmp_path, READING, extra={"cost_ratio_picker": picker})
+    assert relaxed.state == "no_inspection_flagged"
+    assert any("as much as 5 false alarms" in caveat for caveat in relaxed.caveats)
 
 
 def test_a_result_shows_the_sensitivity_expander_with_each_cost_ratio(flagging_dir: Path) -> None:

@@ -128,10 +128,28 @@ def _(inputs):
 
 
 @app.cell
+def _(DisabledUnit, config, mo, unit):
+    # The Flag's Operating threshold depends on the assumed Cost ratio; the engineer can try each one
+    # the unit stores a threshold for.
+    _available = (
+        config.threshold.cost_ratios
+        if isinstance(unit, DisabledUnit)
+        else [r for r in config.threshold.cost_ratios if r in unit.operating_point.thresholds]
+    )
+    cost_ratio_picker = mo.ui.dropdown(
+        {f"{ratio:g}:1": ratio for ratio in _available},
+        value=f"{config.threshold.default_cost_ratio:g}:1",
+        label="Cost ratio (missed failure : false alarms, an assumption)",
+    )
+    return (cost_ratio_picker,)
+
+
+@app.cell
 def _(
     DisabledUnit,
     assess,
     config,
+    cost_ratio_picker,
     example,
     present,
     present_unavailable,
@@ -139,12 +157,12 @@ def _(
     recorded_outcome,
     unit,
 ):
-    _ratio = config.threshold.default_cost_ratio
+    _ratio = cost_ratio_picker.value
     if isinstance(unit, DisabledUnit):
         presentation = present_unavailable(unit, cost_ratio=_ratio)
     else:
         presentation = present(
-            assess(unit, reading, config.plausibility),
+            assess(unit, reading, config.plausibility, _ratio),
             unit.operating_point,
             unit.operating_metrics,
             cost_ratio=_ratio,
@@ -154,7 +172,16 @@ def _(
 
 
 @app.cell
-def _(BUILD_RELEASE, example_picker, examples, inputs, mo, presentation, scoring_banner):
+def _(
+    BUILD_RELEASE,
+    cost_ratio_picker,
+    example_picker,
+    examples,
+    inputs,
+    mo,
+    presentation,
+    scoring_banner,
+):
     _kinds = {
         "model_unavailable": "danger",
     }
@@ -178,6 +205,7 @@ def _(BUILD_RELEASE, example_picker, examples, inputs, mo, presentation, scoring
             *([example_picker] if examples else []),
             mo.md("## Enter the six readings from one machine."),
             mo.vstack(list(inputs.elements.values()), gap=0.5),
+            cost_ratio_picker,
         ],
         gap=0.75,
     ).style(

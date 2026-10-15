@@ -113,6 +113,19 @@ def unit(tmp_path: Path) -> LoadedUnit:
     return constant_unit(tmp_path, positives=300, threshold=0.2)
 
 
+def test_the_flag_follows_the_chosen_cost_ratio(tmp_path: Path) -> None:
+    # Thresholds: 5:1 -> 0.375, 10:1 -> 0.25; the score is 0.3.
+    unit = constant_unit(tmp_path, positives=300, threshold=0.25)
+    assert assess(unit, READING, PLAUSIBILITY).flag is True
+    assert assess(unit, READING, PLAUSIBILITY, 10.0).flag is True
+    assert assess(unit, READING, PLAUSIBILITY, 5.0).flag is False
+
+
+def test_a_cost_ratio_without_a_threshold_is_refused(unit: LoadedUnit) -> None:
+    with pytest.raises(ValueError, match="no threshold for cost ratio 20"):
+        assess(unit, READING, PLAUSIBILITY, 20.0)
+
+
 def test_a_complete_reading_gives_its_unrounded_failure_risk_and_the_flag(
     unit: LoadedUnit,
 ) -> None:

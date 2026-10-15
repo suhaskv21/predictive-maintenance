@@ -115,13 +115,25 @@ def _outside_training(unit: LoadedUnit, reading: Mapping[str, object]) -> tuple[
 
 
 def assess(
-    unit: LoadedUnit, reading: Mapping[str, object], plausibility: PlausibilityConfig
+    unit: LoadedUnit,
+    reading: Mapping[str, object],
+    plausibility: PlausibilityConfig,
+    cost_ratio: float | None = None,
 ) -> Assessment:
     """Assess one Reading: refuse it if any input is absent or unusable, else score and Flag it.
 
+    The Flag uses the Operating threshold at ``cost_ratio`` (the unit's default when None).
+
     This build scores no Incomplete reading whatever the unit's policy lists, and a refusal is
     never recoverable because the policy's reference is empty (the loader accepts only ``reject``).
+
+    Raises:
+        ValueError: if the unit has no Operating threshold at ``cost_ratio``.
     """
+    point = unit.operating_point
+    ratio = point.default_cost_ratio if cost_ratio is None else cost_ratio
+    if ratio not in point.thresholds:
+        raise ValueError(f"the unit has no threshold for cost ratio {ratio:g}")
     missing = _missing_inputs(reading, plausibility)
     if missing:
         return Assessment(
@@ -148,6 +160,6 @@ def assess(
         refusal_reason=None,
         recoverable=False,
         failure_risk=score,
-        flag=score >= unit.operating_point.threshold,
+        flag=score >= point.thresholds[ratio],
         outside_training=_outside_training(unit, reading),
     )

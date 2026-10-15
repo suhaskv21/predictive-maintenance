@@ -226,9 +226,24 @@ def _rounded(figures: Mapping[str, Any]) -> tuple[int, int, int] | None:
     )
 
 
+def _figures_at(metrics: Mapping[str, Any], ratio: float) -> tuple[str, Mapping[str, Any]]:
+    """The source text and figures for ``ratio``: the top-level ones if present, else the CV set.
+
+    Once the Holdout is applied only the default ratio is top-level; the other ratios keep their
+    cross-validation figures under ``sensitivity``.
+    """
+    key = ratio_key(ratio)
+    if key in metrics["ratios"]:
+        return _source_text(metrics), metrics["ratios"][key]
+    stored = metrics.get("sensitivity", {})
+    if key not in stored.get("ratios", {}):
+        raise ValueError(f"no operating figures for cost ratio {ratio:g}")
+    return _source_text(stored), stored["ratios"][key]
+
+
 def _meaning(metrics: Mapping[str, Any], ratio: float, flagged: bool) -> tuple[str, ...]:
-    source = _source_text(metrics)
-    rounded = _rounded(metrics["ratios"][ratio_key(ratio)])
+    source, figures = _figures_at(metrics, ratio)
+    rounded = _rounded(figures)
     if rounded is None:
         return ("What a Flag means is not available for this model.",)
     caught, real, flags = rounded
@@ -279,8 +294,8 @@ def _sensitivity(model: str, metrics: Mapping[str, Any], cost_ratio: float) -> d
     return {
         "sensitivity_title": SENSITIVITY_TITLE,
         "sensitivity_intro": (
-            f"For information only: the Flag above always uses {cost_ratio:g}:1, and this "
-            "cannot be changed here."
+            f"For information only: the Flag above uses the {cost_ratio:g}:1 ratio chosen "
+            "above; the rows below show every ratio."
         ),
         "sensitivity": rows,
         "sensitivity_source": f"Figures from {source}.",
@@ -309,16 +324,16 @@ def present(
 ) -> Presentation:
     """The strings for one assessment from a loaded unit.
 
-    ``cost_ratio`` is the configured default Cost ratio and must be the one the unit's Operating
-    threshold was set at; a stale unit is refused rather than quoted under the wrong assumption.
+    ``cost_ratio`` is the Cost ratio the engineer chose (the configured default unless changed).
+    The Flag line and figures are those of that ratio, so the unit must store an Operating
+    threshold and figures for it; a stale unit is refused rather than quoted under the wrong
+    assumption.
     ``recorded_outcome`` is the Machine failure recorded for an unedited Example reading; it is
     shown only with a complete assessment.
     """
-    if operating_point.default_cost_ratio != cost_ratio:
-        raise ValueError(
-            f"the unit's cost ratio {operating_point.default_cost_ratio:g} differs from the "
-            f"configured {cost_ratio:g}"
-        )
+    if cost_ratio not in operating_point.thresholds:
+        known = ", ".join(f"{r:g}" for r in sorted(operating_point.thresholds))
+        raise ValueError(f"the unit has no threshold for cost ratio {cost_ratio:g}; it has {known}")
     model_line = f"Model: {model_name(operating_point.model)}."
     caveats = _caveats(cost_ratio)
     if assessment.status == "refused":
@@ -346,7 +361,7 @@ def present(
         headline="Inspect" if assessment.flag else "No inspection flagged",
         failure_risk="Failure risk (rough estimate, not calibrated): "
         + risk_text(assessment.failure_risk, floor),
-        flag_line=flag_line_text(operating_point.threshold, floor),
+        flag_line=flag_line_text(operating_point.thresholds[cost_ratio], floor),
         flag_line_note=FLAG_LINE_NOTE,
         meaning=_meaning(operating_metrics, cost_ratio, assessment.flag),
         meaning_title=MEANING_TITLE,
