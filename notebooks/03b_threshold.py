@@ -559,6 +559,40 @@ def _(alt, cv_operating_metrics, default_ratio, estimates, mo, np, pl, precision
 
 
 @app.cell
+def _(alt, default_ratio, mo, pl, pr_curve, pr_markers):
+    # Forest-only version for the README. Needs `uv run --with vl-convert-python`; skipped otherwise.
+    _forest = "random_forest_unweighted"
+    _curve = pr_curve.filter(pl.col("model") == _forest)
+    _marks = pr_markers.filter(pl.col("model") == _forest)
+    _x = alt.X("recall:Q", title="Recall (share of Machine failures Flagged)", scale=alt.Scale(domain=[0, 1]))
+    _y = alt.Y("precision:Q", title="Precision (share of Flags that are real)", scale=alt.Scale(domain=[0, 1.02]))
+    _line = alt.Chart(_curve).mark_line(color="#1f77b4").encode(x=_x, y=_y)
+    _dots = (
+        alt.Chart(_marks)
+        .mark_point(filled=True, stroke="black", strokeWidth=1, color="#d62728")
+        .encode(
+            x=_x,
+            y=_y,
+            shape=alt.Shape("cost_ratio:N", title="Cost ratio"),
+            size=alt.condition("datum.is_default", alt.value(260), alt.value(110)),
+        )
+    )
+    readme_pr = (_line + _dots).properties(
+        title=f"Random forest: precision-recall curve and chosen thresholds (CV, {default_ratio:g}:1 default)",
+        width=520,
+        height=340,
+    )
+    _figures = mo.notebook_dir().parent / "docs" / "figures"
+    try:
+        _figures.mkdir(parents=True, exist_ok=True)
+        readme_pr.save(_figures / "pr-curve-cost-ratios.png", scale_factor=2)
+    except (ImportError, ValueError):
+        pass
+    mo.ui.altair_chart(readme_pr)
+    return
+
+
+@app.cell
 def _(alt, default_ratio, estimates, mean_cost, mo, np, pl, rows, y):
     _grid = np.linspace(0.0, 0.8, 161)
     cost_curve = pl.DataFrame(

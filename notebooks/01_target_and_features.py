@@ -10,7 +10,7 @@ def _():
     import marimo as mo
     import numpy as np
     import polars as pl
-    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import average_precision_score, precision_score, recall_score
     from sklearn.model_selection import (
@@ -32,6 +32,7 @@ def _():
         ENGINEERED_FEATURES,
         HistGradientBoostingClassifier,
         LogisticRegression,
+        RandomForestClassifier,
         RepeatedStratifiedKFold,
         alt,
         average_precision_score,
@@ -112,8 +113,8 @@ def _(RepeatedStratifiedKFold, df, schema, seed, train_test_split):
 
 @app.cell
 def _(
-    HistGradientBoostingClassifier,
     LogisticRegression,
+    RandomForestClassifier,
     cross_val_score,
     cv,
     pl,
@@ -136,10 +137,12 @@ def _(
             return str(frame)
 
     # Untuned defaults: this notebook compares feature sets, it does not select a model (ADR 0006).
-    nonlinear_model = "HistGradientBoosting"
+    nonlinear_model = "Random forest"
     models = {
         "Logistic regression": lambda: LogisticRegression(max_iter=1000),
-        nonlinear_model: lambda: HistGradientBoostingClassifier(random_state=seed),
+        nonlinear_model: lambda: RandomForestClassifier(
+            n_estimators=300, random_state=seed, n_jobs=-1
+        ),
     }
     return cv_scores, markdown_table, models, nonlinear_model
 
@@ -529,7 +532,9 @@ def _(alt, mo, pl, summary):
     points = base.mark_circle(size=70).encode(
         x=alt.X("delta:Q", title="Paired gain in PR-AUC over raw (± 1 SE)")
     )
-    bars = base.mark_errorbar().encode(x="lo:Q", x2="hi:Q")
+    bars = base.mark_errorbar().encode(
+        x=alt.X("lo:Q", title="Paired gain in PR-AUC over raw (± 1 SE)"), x2="hi:Q"
+    )
     delta_chart = (
         (bars + points)
         .properties(width=320, height=140)
@@ -537,6 +542,13 @@ def _(alt, mo, pl, summary):
         .properties(title="Engineered features vs raw")
     )
     mo.ui.altair_chart(delta_chart)
+    # Static copy for the README. Needs `uv run --with vl-convert-python`; skipped otherwise.
+    _figures = mo.notebook_dir().parent / "docs" / "figures"
+    try:
+        _figures.mkdir(parents=True, exist_ok=True)
+        delta_chart.save(_figures / "engineered-vs-raw.png", scale_factor=2)
+    except (ImportError, ValueError):
+        pass
     return
 
 
